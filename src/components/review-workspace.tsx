@@ -36,7 +36,7 @@ function fmtTime(value: number) {
   return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") + (ms ? "." + ms : "");
 }
 function thresholdBytes(kind: AssetKind) {
-  if (kind === "html5-zip") return 150 * 1024;
+  if (kind === "html5-zip") return 149999;
   if (kind === "image" || kind === "gif") return 5 * 1024 * 1024;
   if (kind === "video") return 50 * 1024 * 1024;
   if (kind === "pdf") return 20 * 1024 * 1024;
@@ -212,7 +212,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
         const response = await fetch(active.fileUrl, { cache: "no-store" });
         if (!response.ok) throw new Error("Could not read this ZIP file.");
         const blob = await response.blob();
-        const report = await analyzeZip(new File([blob], active.originalName, { type: "application/zip" }), 150 * 1024);
+        const report = await analyzeZip(new File([blob], active.originalName, { type: "application/zip" }), 149999);
         results = report.findings.map(f => ({
           ruleId: f.id,
           status: f.status === "PASS" ? "pass" : f.status === "FAIL" ? "fail" : f.status === "WARN" ? "review" : "na",
@@ -227,7 +227,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
           if (rule.id === "file-size") {
             const limit = thresholdBytes(active.kind);
             status = active.size <= limit ? "pass" : "fail";
-            detail = niceSize(active.size) + " / default limit " + niceSize(limit) + (active.kind === "html5-zip" ? " (150 KB default)" : "");
+            detail = niceSize(active.size) + " / default limit " + niceSize(limit) + (active.kind === "html5-zip" ? " (149,999-byte default)" : "");
           } else if (rule.id === "extension") {
             status = active.kind === "unknown" ? "review" : "pass";
             detail = active.kind === "unknown" ? "Unrecognized extension; verify the expected delivery format." : "Detected as " + KIND_LABEL[active.kind] + " (" + active.extension + ").";
