@@ -6,7 +6,7 @@ import { getAssetKind, safeAssetName, type Review } from "@/lib/review-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const ROOT = path.join(process.cwd(), "data", "reviews");
+const ROOT = path.join(process.env.WINSTON_DATA_DIR || path.join(process.cwd(), "data"), "reviews");
 const MAX_FILE = 100 * 1024 * 1024;
 const MAX_TOTAL = 250 * 1024 * 1024;
 
