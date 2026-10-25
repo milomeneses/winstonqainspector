@@ -26,7 +26,7 @@ A review URL is a bearer link. Anyone with the URL can read and edit its notes, 
 
 - Each file: 100 MB maximum.
 - Combined upload batch: 250 MB maximum.
-- HTML5 ZIP QA default size threshold: 150 KiB; customize the product default to match a specific platform/spec.
+- HTML5 ZIP QA default size threshold: 149,999 bytes; customize the product default to match a specific platform/spec.
 - ZIP and HTML previews are best-effort and sandboxed. Static checks do not certify platform acceptance.
 - Current inline formats include common images/GIFs, browser-supported video/audio and PDF; Office documents are stored/downloadable but not rendered inline.
 
