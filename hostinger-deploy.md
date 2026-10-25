@@ -1,31 +1,41 @@
 # Deploy Winston QA Inspector on Hostinger
 
-This project uses Next.js and needs a Node.js application environment. Availability depends on the Hostinger plan.
+This app uses Next.js 15 and Node.js 22. The actual feature set available to you depends on your Hostinger Node.js application plan.
 
-## Recommended configuration
+## Build settings
 
-- Node.js: 22 LTS, or the newest version supported by your plan
-- Application root: the folder containing package.json
-- Build command: npm install && npm run build
-- Start command: npm run start
-- Mode: production
-- Port: use the port provided by Hostinger; Next.js reads PORT automatically
+- Framework preset: Next.js
+- Branch: `main`
+- Node: `22.x`
+- Root directory: `./`
+- Build command: `npm install && npm run build`
+- Start command: `npm run start`
+- Environment variables: none required by the current MVP
 
-## Deploy from GitHub
+## Important: upload persistence
 
-1. In Hostinger hPanel, open the Node.js web app setup or Add Website flow.
-2. Connect https://github.com/milomeneses/winstonqainspector if Git deployment is available in your plan.
-3. Set the application root to the repository root.
-4. Configure the build and start commands above.
-5. Deploy and test the assigned domain.
-6. Enable HTTPS before sharing the app.
+The review API currently stores uploaded binary files and review JSON under `data/reviews/<review-id>/` on the Node.js server filesystem. This supports unique cross-user review links on one persistent application instance, but it is not a substitute for a managed database/object store.
 
-If the hPanel interface for your plan does not offer a Node.js application, the app will need a compatible Node.js host or a reviewed static-export adaptation.
+Before using reviews as long-term client records, verify on your exact Hostinger plan that the writable runtime filesystem persists across redeploys/restarts and make backups. A redeploy or host reset may lose stored reviews. If you expect multiple server instances or dependable long-term storage, add S3-compatible object storage plus a database (or a managed backend such as Supabase) and migrate this API to that storage.
 
-## MVP limitations
+## Link access
 
-- ZIP files are analyzed in the browser. The client does not send the ZIP contents to the app server.
-- JSZip loads the archive into browser memory, so multi-gigabyte packages are not reliably supported.
-- Checks are static heuristics: they do not execute the creative, prove click-through behavior, or certify acceptance by an ad platform.
-- Google Drive and native local-agent integrations are not implemented yet.
-- Before production use, test good and intentionally broken sample packages and verify the size-limit boundary cases.
+A review URL is a bearer link. Anyone with the URL can read and edit its notes, annotations, statuses and QA results. Password gates, role permissions, authentication, expiration and access logs are not implemented.
+
+## Limits
+
+- Each file: 100 MB maximum.
+- Combined upload batch: 250 MB maximum.
+- HTML5 ZIP QA default size threshold: 150 KiB; customize the product default to match a specific platform/spec.
+- ZIP and HTML previews are best-effort and sandboxed. Static checks do not certify platform acceptance.
+- Current inline formats include common images/GIFs, browser-supported video/audio and PDF; Office documents are stored/downloadable but not rendered inline.
+
+## First smoke test after deployment
+
+1. Create a review with a small JPG and a GIF.
+2. Copy the unique review URL and open it in a private window or another browser.
+3. Add an asset note and draw an annotation.
+4. Reload the link to verify changes persisted.
+5. Upload an MP4, add a timestamp note, and check that the timecode seeks playback.
+6. Upload a tiny HTML5 ZIP with a root HTML file; run QA and check the preview.
+7. Remove a test asset and confirm it disappears for all link viewers.
