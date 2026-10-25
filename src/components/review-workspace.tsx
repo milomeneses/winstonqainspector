@@ -213,14 +213,23 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
         if (!response.ok) throw new Error("Could not read this ZIP file.");
         const blob = await response.blob();
         const report = await analyzeZip(new File([blob], active.originalName, { type: "application/zip" }), 149999);
-        results = report.findings.map(f => ({
-          ruleId: f.id,
-          status: f.status === "PASS" ? "pass" : f.status === "FAIL" ? "fail" : f.status === "WARN" ? "review" : "na",
-          detail: f.title + ": " + f.detail + (f.evidence ? "\n" + f.evidence : ""), checkedAt
-        }));
-        results.push(...review.rules.filter(r => r.enabled && !["file-size", "extension", "html5-entry"].includes(r.id)).map(r => ({
-          ruleId: r.id, status: "review" as const, detail: "Manual review required: " + r.description, checkedAt
-        })));
+        const findingMap = new Map(report.findings.map(f => [f.id, f]));
+        for (const rule of review.rules.filter(r => r.enabled && applicable(r, active))) {
+          let related: typeof report.findings = [];
+          if (rule.id === "file-size") related = [findingMap.get("zip-size")].filter((f): f is NonNullable<typeof f> => Boolean(f));
+          else if (rule.id === "extension") {
+            results.push({ ruleId: rule.id, status: "pass", detail: "Detected as HTML5 ZIP (" + active.extension + ").", checkedAt });
+            continue;
+          } else if (rule.id === "html5-entry") related = ["html-entry", "clicktag", "local-resources"].map(k => findingMap.get(k)).filter((f): f is NonNullable<typeof f> => Boolean(f));
+          else if (rule.id === "dimensions") related = [findingMap.get("dimensions")].filter((f): f is NonNullable<typeof f> => Boolean(f));
+          else if (rule.id === "links") related = ["external-resources", "local-resources"].map(k => findingMap.get(k)).filter((f): f is NonNullable<typeof f> => Boolean(f));
+          if (related.length) {
+            const status: QAResult["status"] = related.some(f => f.status === "FAIL") ? "fail" : related.some(f => f.status === "WARN") ? "review" : related.every(f => f.status === "INFO") ? "na" : "pass";
+            results.push({ ruleId: rule.id, status, detail: related.map(f => f.title + ": " + f.detail + (f.evidence ? "\n" + f.evidence : "")).join("\n\n"), checkedAt });
+          } else {
+            results.push({ ruleId: rule.id, status: "review", detail: "Manual review required: " + (rule.description || rule.name), checkedAt });
+          }
+        }
       } else {
         for (const rule of review.rules.filter(r => r.enabled && applicable(r, active))) {
           let status: QAResult["status"] = "review", detail = "Manual review required.";
@@ -237,8 +246,8 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
             detail = meta?.width && meta.height ? "Detected " + meta.width + " × " + meta.height + " px. Compare with the brief." : "Load the preview to read dimensions, then confirm against the brief.";
           } else if (rule.id === "video-playback") {
             const meta = metadata[active.id];
-            status = active.kind === "video" && meta?.duration ? "pass" : "review";
-            detail = meta?.duration ? "Browser loaded video metadata; duration " + fmtTime(meta.duration) + ". Play it through to confirm." : "Play the video and check that it plays and seeks correctly.";
+            status = "review";
+            detail = meta?.duration ? "Browser loaded video metadata; duration " + fmtTime(meta.duration) + ". Play it through and mark pass only after playback and seeking are verified." : "Play the video and check that it plays and seeks correctly.";
           } else if (rule.id === "pdf-pages") {
             status = "review"; detail = "Preview the PDF and inspect the required pages.";
           } else {
