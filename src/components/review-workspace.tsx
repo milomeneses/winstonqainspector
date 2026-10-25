@@ -98,7 +98,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
       })
       .then(data => {
         if (cancelled) return;
-        setReview(data); latest.current = data; setActiveId(data.assets[0]?.id || "");
+        setReview(data); latest.current = data; const requestedAsset = new URLSearchParams(window.location.search).get("asset"); setActiveId(data.assets.some(a => a.id === requestedAsset) ? (requestedAsset || "") : (data.assets[0]?.id || ""));
         setLoading(false);
       })
       .catch(e => { if (!cancelled) { setLoadError(e instanceof Error ? e.message : "Could not load review."); setLoading(false); } });
@@ -130,7 +130,8 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
 
   const active = review?.assets.find(a => a.id === activeId) || null;
   const visibleAssets = useMemo(() => (review?.assets || []).filter(a => (a.originalName + " " + KIND_LABEL[a.kind]).toLowerCase().includes(assetSearch.toLowerCase())), [review, assetSearch]);
-  const url = typeof window !== "undefined" ? window.location.origin + "/review/" + reviewId : "/review/" + reviewId;
+  const reviewUrl = typeof window !== "undefined" ? window.location.origin + "/review/" + reviewId : "/review/" + reviewId;
+  const url = active ? reviewUrl + "?asset=" + encodeURIComponent(active.id) : reviewUrl;
   const updateAsset = useCallback((assetId: string, patch: Partial<Asset>) => {
     setData(old => ({ ...old, assets: old.assets.map(a => a.id === assetId ? { ...a, ...patch } : a) }));
   }, [setData]);
@@ -138,9 +139,9 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
     setMetadata(old => ({ ...old, [assetId]: { ...old[assetId], ...patch } }));
   }, []);
 
-  async function copyLink() {
+  async function copyLink(targetUrl = url) {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(targetUrl);
       setCopyMessage("Link copied");
     } catch { setCopyMessage("Select and copy the URL from your browser"); }
     setTimeout(() => setCopyMessage(""), 2200);
@@ -166,7 +167,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not remove asset");
       setData(old => ({ ...old, assets: old.assets.filter(a => a.id !== asset.id) }));
-      if (activeId === asset.id) setActiveId(review?.assets.find(a => a.id !== asset.id)?.id || "");
+      if (activeId === asset.id) { const next = review?.assets.find(a => a.id !== asset.id)?.id || ""; setActiveId(next); window.history.replaceState(null,"",next ? "/review/"+reviewId+"?asset="+encodeURIComponent(next) : "/review/"+reviewId); }
     } catch (e) { setError(e instanceof Error ? e.message : "Could not remove asset."); }
     finally { setConfirmRemoveId(""); }
   }
@@ -265,7 +266,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
       <div className="reviewBread"><span>Shared reviews</span><b>›</b><strong>{review.title}</strong></div>
       <div className="topActions">
         <span className={"saveIndicator " + saveState}>{saveState === "saving" ? <LoaderCircle size={13} className="spinning"/> : saveState === "error" ? <CircleAlert size={13}/> : <CheckCircle2 size={13}/>} {saveState === "saving" ? "Saving…" : saveState === "error" ? "Save error" : "All changes saved"}</span>
-        <button type="button" className="button secondary smallButton" onClick={copyLink}><Copy size={14}/>{copyMessage || "Copy review link"}</button>
+        <button type="button" className="button secondary smallButton" onClick={()=>copyLink()}><Copy size={14}/>{copyMessage || "Copy asset link"}</button>
       </div>
     </header>
     <div className="reviewPage">
@@ -288,7 +289,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
           <div className="assetList">
             {visibleAssets.map(asset => {
               const Icon = KIND_ICON[asset.kind];
-              return <button type="button" key={asset.id} className={"assetListItem " + (activeId === asset.id ? "active" : "")} onClick={()=>{setActiveId(asset.id);setCurrentTime(0);setAnnotating(false);setConfirmRemoveId("");}}>
+              return <button type="button" key={asset.id} className={"assetListItem " + (activeId === asset.id ? "active" : "")} onClick={()=>{setActiveId(asset.id);setCurrentTime(0);setAnnotating(false);setConfirmRemoveId("");window.history.replaceState(null,"","/review/"+reviewId+"?asset="+encodeURIComponent(asset.id));}}>
                 <span className={"assetThumb " + asset.kind}><Icon size={18}/></span><span className="assetListCopy"><b title={asset.originalName}>{asset.originalName}</b><small>{KIND_LABEL[asset.kind]} · {niceSize(asset.size)}</small><span className={"tinyStatus " + STATUS_CLASS[asset.status]}>{STATUS_LABEL[asset.status]}</span></span>
               </button>;
             })}
@@ -334,8 +335,8 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
 
         <aside className="rightPanel">
           <div className="rightPanelTop"><div><div className="eyebrow">REVIEW CONTROLS</div><h3>Collaboration</h3></div><Link2 size={18}/></div>
-          <button className="shareAction" type="button" onClick={copyLink}><span className="shareIcon"><Copy size={17}/></span><span><b>Copy unique review link</b><small>Send to the asset creator</small></span><ArrowUpRight size={15}/></button>
-          <div className="shareUrlBox"><small>SHARE URL</small><code>{url}</code><button onClick={copyLink} type="button"><Copy size={12}/>{copyMessage||"Copy URL"}</button></div>
+          <button className="shareAction" type="button" onClick={()=>copyLink()}><span className="shareIcon"><Copy size={17}/></span><span><b>Copy unique asset link</b><small>{active ? "Opens directly to "+active.originalName : "Choose an asset first"}</small></span><ArrowUpRight size={15}/></button>
+          <div className="shareUrlBox"><small>SHARE URL</small><code>{url}</code><button onClick={()=>copyLink()} type="button"><Copy size={12}/>{copyMessage||"Copy asset URL"}</button><button onClick={()=>copyLink(reviewUrl)} type="button"><Link2 size={12}/>Copy all-assets review link</button></div>
           <div className="panelDivider"/>
           <div className="rightPanelTop rulesHeader"><div><div className="eyebrow">QUALITY CONTROL</div><h3>QA rules</h3></div><button className="iconButton" type="button" aria-label="Add QA rule" onClick={()=>setShowNewRule(v=>!v)}><Plus size={17}/></button></div>
           <p className="rulesIntro">Enable, disable, edit or add review criteria. Results are attached to the selected asset.</p>
