@@ -1,4 +1,4 @@
-export type AssetKind = "image" | "gif" | "video" | "audio" | "pdf" | "html5-zip" | "document" | "unknown";
+export type AssetKind = "image" | "gif" | "html" | "video" | "audio" | "pdf" | "html5-zip" | "document" | "unknown";
 export type ReviewStatus = "needs-review" | "approved" | "changes-requested";
 export type RuleSeverity = "blocker" | "warning" | "info";
 export type RuleResultStatus = "pass" | "fail" | "review" | "na";
@@ -41,6 +41,7 @@ export const DEFAULT_RULES: QAItem[] = [
 export function getAssetKind(name: string, mimeType = ""): AssetKind {
   const ext = name.split(".").pop()?.toLowerCase() || "";
   if (["zip"].includes(ext)) return "html5-zip";
+  if (["html", "htm"].includes(ext)) return "html";
   if (["gif"].includes(ext)) return "gif";
   if (["jpg", "jpeg", "png", "webp", "avif", "bmp", "svg", "tif", "tiff"].includes(ext) || mimeType.startsWith("image/")) return "image";
   if (["mp4", "mov", "webm", "m4v", "ogv", "avi", "mkv"].includes(ext) || mimeType.startsWith("video/")) return "video";
