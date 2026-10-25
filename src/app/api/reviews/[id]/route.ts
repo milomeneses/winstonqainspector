@@ -35,7 +35,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         id: String(rule.id).slice(0, 80), name: String(rule.name).slice(0, 160),
         description: String(rule.description).slice(0, 1000), enabled: Boolean(rule.enabled),
         severity: ["blocker", "warning", "info"].includes(rule.severity) ? rule.severity : "warning",
-        appliesTo: Array.isArray(rule.appliesTo) ? rule.appliesTo.slice(0, 20) : ["all"]
+        appliesTo: Array.isArray(rule.appliesTo) ? (rule.appliesTo.includes("all") ? ["all"] as ["all"] : rule.appliesTo.slice(0, 20) as Review["rules"][number]["appliesTo"]) : ["all"] as ["all"]
       }));
     }
     if (Array.isArray(body.assets)) {
