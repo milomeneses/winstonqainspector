@@ -20,7 +20,7 @@ Before using reviews as long-term client records, verify on your exact Hostinger
 
 ## Link access
 
-A review URL is a bearer link. Anyone with the URL can read and edit its notes, annotations, statuses and QA results. Password gates, role permissions, authentication, expiration and access logs are not implemented.
+Each asset has a deep link in the form `/review/<review-id>?asset=<asset-id>`, and there is also a link to the full multi-asset review. A review URL is a bearer link. Anyone with the URL can read and edit its notes, annotations, statuses and QA results. Password gates, role permissions, authentication, expiration and access logs are not implemented.
 
 ## Limits
 
