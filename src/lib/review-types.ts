@@ -5,7 +5,7 @@ export type RuleResultStatus = "pass" | "fail" | "review" | "na";
 export type QAResult = { ruleId: string; status: RuleResultStatus; detail: string; checkedAt: string };
 export type QAItem = {
   id: string; name: string; description: string; enabled: boolean;
-  severity: RuleSeverity; appliesTo: AssetKind[] | ["all"];
+  severity: RuleSeverity; appliesTo: (AssetKind | "all")[];
 };
 export type Point = { x: number; y: number };
 export type Stroke = {
