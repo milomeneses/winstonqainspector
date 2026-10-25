@@ -6,7 +6,7 @@ import { DEFAULT_RULES, getAssetKind, safeAssetName, type Asset, type Review } f
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const DATA_ROOT = path.join(process.cwd(), "data", "reviews");
+const DATA_ROOT = path.join(process.env.WINSTON_DATA_DIR || path.join(process.cwd(), "data"), "reviews");
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 250 * 1024 * 1024;
 
