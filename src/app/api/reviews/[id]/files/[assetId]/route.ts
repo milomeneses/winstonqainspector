@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { stat, readFile, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
@@ -48,5 +48,24 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return new Response(Readable.toWeb(createReadStream(filePath)) as ReadableStream, { headers: commonHeaders });
   } catch {
     return new Response("Not found", { status: 404 });
+  }
+}
+
+
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string; assetId: string }> }) {
+  const { id, assetId } = await context.params;
+  if (!/^[a-f0-9]{24}$/.test(id) || !/^[a-f0-9]{16}$/.test(assetId)) return NextResponse.json({error:"Not found."},{status:404});
+  const reviewPath = path.join(DATA_ROOT, id, "review.json");
+  try {
+    const review = JSON.parse(await readFile(reviewPath, "utf8")) as Review;
+    const asset = review.assets.find(a => a.id === assetId);
+    if (!asset) return NextResponse.json({error:"Asset not found."},{status:404});
+    await unlink(path.join(DATA_ROOT, id, "files", asset.storedName)).catch(()=>{});
+    review.assets = review.assets.filter(a => a.id !== assetId);
+    review.updatedAt = new Date().toISOString();
+    await writeFile(reviewPath, JSON.stringify(review, null, 2), "utf8");
+    return NextResponse.json({ok:true});
+  } catch {
+    return NextResponse.json({error:"Could not remove this asset."},{status:500});
   }
 }
