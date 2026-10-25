@@ -227,7 +227,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
           if (rule.id === "file-size") {
             const limit = thresholdBytes(active.kind);
             status = active.size <= limit ? "pass" : "fail";
-            detail = niceSize(active.size) + " / default limit " + niceSize(limit) + (active.kind === "html5-zip" ? " (149,999-byte default)" : "");
+            detail = niceSize(active.size) + " / default limit " + niceSize(limit);
           } else if (rule.id === "extension") {
             status = active.kind === "unknown" ? "review" : "pass";
             detail = active.kind === "unknown" ? "Unrecognized extension; verify the expected delivery format." : "Detected as " + KIND_LABEL[active.kind] + " (" + active.extension + ").";
