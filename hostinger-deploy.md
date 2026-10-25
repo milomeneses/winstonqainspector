@@ -14,7 +14,7 @@ This app uses Next.js 15 and Node.js 22. The actual feature set available to you
 
 ## Important: upload persistence
 
-The review API currently stores uploaded binary files and review JSON under `data/reviews/<review-id>/` on the Node.js server filesystem. This supports unique cross-user review links on one persistent application instance, but it is not a substitute for a managed database/object store.
+The review API currently stores uploaded binary files and review JSON under `data/reviews/<review-id>/` on the Node.js server filesystem by default. If Hostinger provides a persistent writable directory on your plan, set the optional `WINSTON_DATA_DIR` environment variable to that absolute path (the app creates a `reviews/` subfolder inside it). This supports unique cross-user review links on one persistent application instance, but it is not a substitute for a managed database/object store.
 
 Before using reviews as long-term client records, verify on your exact Hostinger plan that the writable runtime filesystem persists across redeploys/restarts and make backups. A redeploy or host reset may lose stored reviews. If you expect multiple server instances or dependable long-term storage, add S3-compatible object storage plus a database (or a managed backend such as Supabase) and migrate this API to that storage.
 
