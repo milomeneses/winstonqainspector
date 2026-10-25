@@ -3,7 +3,7 @@
 import JSZip from "jszip";
 import { ChangeEvent, PointerEvent, SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowUpRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, Download, FileAudio,
+  ArrowUpRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, Download, FileArchive, FileAudio,
   FileImage, FilePlus2, FileText, Film, Link2, LoaderCircle, MessageSquare, Palette, Pencil, Play,
   Plus, ShieldCheck, Trash2, Video, X
 } from "lucide-react";
