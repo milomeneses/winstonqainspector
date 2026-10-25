@@ -38,7 +38,7 @@ See [hostinger-deploy.md](./hostinger-deploy.md) for Hostinger notes.
 ## Upload limits
 
 - 100 MB per file and 250 MB combined per review in this MVP.
-- The default HTML5 ZIP QA threshold is 149,999 bytes (153,600 bytes). This is an editable product default, not a universal advertising-platform requirement.
+- The default HTML5 ZIP QA threshold is 149,999 bytes. This is an editable product default, not a universal advertising-platform requirement.
 - Other default size thresholds: image/GIF 5 MB, video 50 MB, PDF 20 MB, other assets 20 MB. Team/project specs may be stricter.
 
 ## Sharing, storage and privacy
