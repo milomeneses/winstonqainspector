@@ -13,11 +13,11 @@ import { DEFAULT_RULES, type Asset, type AssetKind, type QAItem, type QAResult, 
 
 type MediaMeta = { width?: number; height?: number; duration?: number; loaded?: boolean };
 const KIND_LABEL: Record<AssetKind, string> = {
-  image: "Image", gif: "Animated GIF", video: "Video", audio: "Audio", pdf: "PDF", "html5-zip": "HTML5 ZIP", document: "Document", unknown: "Unknown file"
+  image: "Image", gif: "Animated GIF", html: "HTML file", video: "Video", audio: "Audio", pdf: "PDF", "html5-zip": "HTML5 ZIP", document: "Document", unknown: "Unknown file"
 };
 const STATUS_LABEL: Record<ReviewStatus, string> = { "needs-review": "Needs review", approved: "Approved", "changes-requested": "Changes requested" };
 const STATUS_CLASS: Record<ReviewStatus, string> = { "needs-review": "needs", approved: "approved", "changes-requested": "changes" };
-const KIND_ICON: Record<AssetKind, typeof FileImage> = { image: FileImage, gif: FileImage, video: Film, audio: FileAudio, pdf: FileText, "html5-zip": FileArchive, document: FileText, unknown: FileText };
+const KIND_ICON: Record<AssetKind, typeof FileImage> = { image: FileImage, gif: FileImage, html: FileText, video: Film, audio: FileAudio, pdf: FileText, "html5-zip": FileArchive, document: FileText, unknown: FileText };
 const RULE_HINTS: Record<string, string> = {
   "file-size": "Default thresholds: HTML5 ZIP 150 KB, image/GIF 5 MB, video 50 MB, PDF 20 MB, other file 20 MB.",
   "dimensions": "The preview reports pixel dimensions when the browser can read them. Compare against your delivery brief.",
@@ -195,7 +195,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
   function updateRule(ruleId: string, patch: Partial<QAItem>) {
     setData(old => ({ ...old, rules: old.rules.map(rule => rule.id === ruleId ? { ...rule, ...patch } : rule) }));
   }
-  function removeRule(ruleId: string) { setData(old => ({ ...old, rules: old.rules.filter(rule => rule.id !== ruleId })); }
+  function removeRule(ruleId: string) { setData(old => ({ ...old, rules: old.rules.filter(rule => rule.id !== ruleId) })); }
 
   async function runQA() {
     if (!review || !active) return;
