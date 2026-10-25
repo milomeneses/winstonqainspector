@@ -42,7 +42,7 @@ function thresholdBytes(kind: AssetKind) {
   if (kind === "pdf") return 20 * 1024 * 1024;
   return 20 * 1024 * 1024;
 }
-function applicable(rule: QAItem, asset: Asset) { return rule.appliesTo.includes("all") || rule.appliesTo.includes(asset.kind); }
+function applicable(rule: QAItem, asset: Asset) { const scopes = rule.appliesTo as readonly string[]; return scopes.includes("all") || scopes.includes(asset.kind); }
 
 export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
   const router = useRouter();
