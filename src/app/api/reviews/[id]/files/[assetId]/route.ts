@@ -7,7 +7,7 @@ import type { Review } from "@/lib/review-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const DATA_ROOT = path.join(process.cwd(), "data", "reviews");
+const DATA_ROOT = path.join(process.env.WINSTON_DATA_DIR || path.join(process.cwd(), "data"), "reviews");
 const INLINE_TYPES: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", avif: "image/avif",
   gif: "image/gif", bmp: "image/bmp", svg: "image/svg+xml", mp4: "video/mp4", webm: "video/webm",
