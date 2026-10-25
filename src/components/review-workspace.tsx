@@ -1,7 +1,7 @@
 "use client";
 
 import JSZip from "jszip";
-import { ChangeEvent, PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, PointerEvent, SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, ArrowUpRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, Download, FileArchive, FileAudio,
@@ -60,6 +60,8 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
   const [brushColor, setBrushColor] = useState("#ff3b30");
   const [brushWidth, setBrushWidth] = useState(3);
   const [currentTime, setCurrentTime] = useState(0);
+  const [seekRequest, setSeekRequest] = useState<{time:number; nonce:string} | null>(null);
+  const updateCurrentTime = useCallback((t:number) => setCurrentTime(t), []);
   const [timeNoteText, setTimeNoteText] = useState("");
   const [assetSearch, setAssetSearch] = useState("");
   const [runBusy, setRunBusy] = useState(false);
@@ -306,15 +308,15 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
               <div className="toolHelp">{annotating ? <><Pencil size={14}/> Draw directly on the preview · click and drag</> : <><Palette size={14}/> Select Annotate to mark up this asset</>}</div>
               {annotating && <div className="drawControls"><div className="colorChoices">{["#ff3b30","#ffb020","#18a76b","#1683ff","#ffffff"].map(c=><button key={c} type="button" aria-label={"Brush color "+c} title={c} className={"colorChoice " + (brushColor===c ? "chosen" : "")} style={{background:c}} onClick={()=>setBrushColor(c)}/>)}</div><label>Brush <input type="range" min="1" max="10" value={brushWidth} onChange={e=>setBrushWidth(Number(e.target.value))}/></label></div>}
             </div>
-            <AssetViewer asset={active} annotating={annotating} brushColor={brushColor} brushWidth={brushWidth} onStroke={stroke=>addStroke(active.id,stroke)} onTimeChange={t=>setCurrentTime(t)} onMetadata={m=>updateMeta(active.id,m)} onError={setError}/>
+            <AssetViewer asset={active} annotating={annotating} brushColor={brushColor} brushWidth={brushWidth} onStroke={stroke=>addStroke(active.id,stroke)} onTimeChange={updateCurrentTime} seekRequest={seekRequest} onMetadata={m=>updateMeta(active.id,m)} onError={setError}/>
             <div className="annotationLegend"><span><Pencil size={13}/> {active.strokes.length} drawing{active.strokes.length===1?"":"s"}</span><span><Clock3 size={13}/> {active.timeNotes.length} timestamp note{active.timeNotes.length===1?"":"s"}</span><span>Best-effort browser preview</span>{active.strokes.length>0&&<button type="button" className="linkButton" onClick={()=>updateAsset(active.id,{strokes:[]})}>Clear all drawings</button>}</div>
 
             <div className="reviewTabs"><button className={activeTab==="feedback"?"current":""} onClick={()=>setActiveTab("feedback")} type="button><MessageSquare size={16}/> Notes & feedback {active.note.trim()||active.timeNotes.length ? <span className="tabDot"/>:null}</button><button className={activeTab==="qa"?"current":""} onClick={()=>setActiveTab("qa")} type="button><ShieldCheck size={16}/> QA checks {active.qaResults.length ? <span className="tabCount">{active.qaResults.length}</span>:null}</button></div>
             {activeTab==="feedback" ? <div className="tabPanel feedbackPanel">
               <div className="assetStatusRow"><div><b>Asset status</b><small>Visible to everyone who has this review link.</small></div><select aria-label="Asset status" value={active.status} onChange={e=>updateAsset(active.id,{status:e.target.value as ReviewStatus})}>{Object.entries(STATUS_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
               <label className="fieldBlock">Asset notes<textarea value={active.note} onChange={e=>updateAsset(active.id,{note:e.target.value})} placeholder="Add a comment for the creator: what to change, where to look, or what needs approval…"/></label>
-              {(active.kind==="video"||active.kind==="html5-zip") && <div className="timestampComposer"><div className="timeStampNow"><Clock3 size={15}/><b>{fmtTime(currentTime)}</b><span>{active.kind==="video"?"Current video time":"Preview elapsed time"}</span></div><textarea value={timeNoteText} onChange={e=>setTimeNoteText(e.target.value)} placeholder="Add feedback at this moment…"/><button className="button secondary smallButton" disabled={!timeNoteText.trim()} onClick={addTimeNote} type="button><Plus size={14}/> Add timestamp note</button></div>}
-              {active.timeNotes.length>0 && <div className="timeNotesList"><h3>Timestamp notes</h3>{active.timeNotes.slice().sort((a,b)=>a.timestampSec-b.timestampSec).map(n=><div className="timeNote" key={n.id}><button type="button" className="timecodeButton" onClick={()=>setCurrentTime(n.timestampSec)}><Play size={12}/>{fmtTime(n.timestampSec)}</button><p>{n.text}</p><button className="iconButton" type="button" aria-label="Remove note" onClick={()=>removeTimeNote(n.id)}><X size={13}/></button></div>)}</div>}
+              {(active.kind==="video"||active.kind==="html5-zip") && <div className="timestampComposer"><div className="timeStampNow"><Clock3 size={15}/><b>{fmtTime(currentTime)}</b><span>{active.kind==="video"?"Current video time":"Preview elapsed time"}</span></div><textarea value={timeNoteText} onChange={e=>setTimeNoteText(e.target.value)} placeholder="Add feedback at this moment…"/><button className="button secondary smallButton" disabled={!timeNoteText.trim()} onClick={addTimeNote} type="button"><Plus size={14}/> Add timestamp note</button></div>}
+              {active.timeNotes.length>0 && <div className="timeNotesList"><h3>Timestamp notes</h3>{active.timeNotes.slice().sort((a,b)=>a.timestampSec-b.timestampSec).map(n=><div className="timeNote" key={n.id}><button type="button" className="timecodeButton" onClick={()=>{setCurrentTime(n.timestampSec);setSeekRequest({time:n.timestampSec,nonce:id()});}}><Play size={12}/>{fmtTime(n.timestampSec)}</button><p>{n.text}</p><button className="iconButton" type="button" aria-label="Remove note" onClick={()=>removeTimeNote(n.id)}><X size={13}/></button></div>)}</div>}
               <div className="overallNoteBlock"><label className="fieldBlock">Review brief / shared notes<textarea value={review.overallNote} onChange={e=>setData(old=>({...old,overallNote:e.target.value}))} placeholder="Project brief, delivery specs, deadline or shared reviewer instructions…"/></label></div>
             </div> : <div className="tabPanel qaPanel">
               <div className="qaToolbar"><div><b>QA inspection</b><small>Run the enabled rules on this asset, then mark any manual checks.</small></div><button type="button" className="button primary smallButton" disabled={runBusy} onClick={runQA}>{runBusy?<LoaderCircle size={14} className="spinning"/>:<ShieldCheck size={14}/>} {runBusy?"Running…":"Run QA"}</button></div>
@@ -352,9 +354,9 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
   </main>;
 }
 
-function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTimeChange, onMetadata, onError }: {
+function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTimeChange, seekRequest, onMetadata, onError }: {
   asset: Asset; annotating: boolean; brushColor: string; brushWidth: number;
-  onStroke: (stroke: Stroke) => void; onTimeChange: (sec: number) => void;
+  onStroke: (stroke: Stroke) => void; onTimeChange: (sec: number) => void; seekRequest: {time:number;nonce:string} | null;
   onMetadata: (meta: MediaMeta) => void; onError: (message: string) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -435,10 +437,10 @@ function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTi
     return ()=>clearInterval(timer);
   }, [asset.id, asset.kind, onTimeChange]);
 
-  const onVideoTime = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+  const onVideoTime = (e: SyntheticEvent<HTMLVideoElement>) => {
     const t=e.currentTarget.currentTime; setCurrentTime(t); onTimeChange(t);
   };
-  const metaImage=(e: React.SyntheticEvent<HTMLImageElement>)=>{const el=e.currentTarget;setRatio(el.naturalWidth&&el.naturalHeight?el.naturalWidth/el.naturalHeight:16/9);onMetadata({width:el.naturalWidth,height:el.naturalHeight,loaded:true});};
+  const metaImage=(e: SyntheticEvent<HTMLImageElement>)=>{const el=e.currentTarget;setRatio(el.naturalWidth&&el.naturalHeight?el.naturalWidth/el.naturalHeight:16/9);onMetadata({width:el.naturalWidth,height:el.naturalHeight,loaded:true});};
   const videoMeta=(e: React.SyntheticEvent<HTMLVideoElement>)=>{const el=e.currentTarget;setRatio(el.videoWidth&&el.videoHeight?el.videoWidth/el.videoHeight:16/9);onMetadata({width:el.videoWidth,height:el.videoHeight,duration:el.duration,loaded:true});};
 
   if (asset.kind==="image"||asset.kind==="gif") return <div className="assetStageOuter"><div className="assetStage imageStage" style={{aspectRatio:ratio,maxWidth:"min(100%, calc(62vh * "+ratio+"))"}}><img className="assetMedia" src={asset.fileUrl} alt={asset.originalName} onLoad={metaImage} onError={()=>onError("Image preview failed. The file may be corrupt or use an unsupported codec.")}/><AnnotationLayer key={asset.id} strokes={asset.strokes} annotate={annotating} color={brushColor} width={brushWidth} timestamp={null} activeTime={null} onStroke={onStroke}/></div></div>;
