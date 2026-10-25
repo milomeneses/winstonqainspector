@@ -11,6 +11,8 @@ const MAX_FILE = 100 * 1024 * 1024;
 const MAX_TOTAL = 250 * 1024 * 1024;
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (declaredLength > MAX_TOTAL + 2 * 1024 * 1024) return NextResponse.json({ error: "This batch exceeds the 250 MB combined upload limit." }, { status: 413 });
   const { id } = await context.params;
   if (!/^[a-f0-9]{24}$/.test(id)) return NextResponse.json({error:"Review not found."},{status:404});
   const reviewPath = path.join(ROOT,id,"review.json");
