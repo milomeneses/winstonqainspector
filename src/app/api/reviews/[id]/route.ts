@@ -5,7 +5,7 @@ import type { Review } from "@/lib/review-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const DATA_ROOT = path.join(process.cwd(), "data", "reviews");
+const DATA_ROOT = path.join(process.env.WINSTON_DATA_DIR || path.join(process.cwd(), "data"), "reviews");
 
 async function loadReview(id: string): Promise<Review | null> {
   if (!/^[a-f0-9]{24}$/.test(id)) return null;
