@@ -5,7 +5,7 @@ import { ChangeEvent, PointerEvent, SyntheticEvent, useCallback, useEffect, useM
 import {
   ArrowUpRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, Download, FileArchive, FileAudio,
   FileImage, FilePlus2, FileText, Film, Link2, LoaderCircle, MessageSquare, Palette, Pencil, Play,
-  Plus, ShieldCheck, Trash2, Video, X
+  Plus, ShieldCheck, Trash2, Video, X, XCircle
 } from "lucide-react";
 import { analyzeZip } from "@/lib/qa";
 import { DEFAULT_RULES, type Asset, type AssetKind, type QAItem, type QAResult, type Review, type ReviewStatus, type RuleSeverity, type Stroke, type TimeNote } from "@/lib/review-types";
