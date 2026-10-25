@@ -325,7 +325,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
             {activeTab==="feedback" ? <div className="tabPanel feedbackPanel">
               <div className="assetStatusRow"><div><b>Asset status</b><small>Visible to everyone who has this review link.</small></div><select aria-label="Asset status" value={active.status} onChange={e=>updateAsset(active.id,{status:e.target.value as ReviewStatus})}>{Object.entries(STATUS_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
               <label className="fieldBlock">Asset notes<textarea value={active.note} onChange={e=>updateAsset(active.id,{note:e.target.value})} placeholder="Add a comment for the creator: what to change, where to look, or what needs approval…"/></label>
-              {(active.kind==="video"||active.kind==="html5-zip") && <div className="timestampComposer"><div className="timeStampNow"><Clock3 size={15}/><b>{fmtTime(currentTime)}</b><span>{active.kind==="video"?"Current video time":"Preview elapsed time"}</span></div><textarea value={timeNoteText} onChange={e=>setTimeNoteText(e.target.value)} placeholder="Add feedback at this moment…"/><button className="button secondary smallButton" disabled={!timeNoteText.trim()} onClick={addTimeNote} type="button"><Plus size={14}/> Add timestamp note</button></div>}
+              {(active.kind==="video"||active.kind==="html5-zip"||active.kind==="gif") && <div className="timestampComposer"><div className="timeStampNow"><Clock3 size={15}/><b>{fmtTime(currentTime)}</b><span>{active.kind==="video"?"Current video time":active.kind==="gif"?"Elapsed viewing time (not the exact GIF frame)":"Preview elapsed time"}</span></div><textarea value={timeNoteText} onChange={e=>setTimeNoteText(e.target.value)} placeholder="Add feedback at this moment…"/><button className="button secondary smallButton" disabled={!timeNoteText.trim()} onClick={addTimeNote} type="button"><Plus size={14}/> Add timestamp note</button></div>}
               {active.timeNotes.length>0 && <div className="timeNotesList"><h3>Timestamp notes</h3>{active.timeNotes.slice().sort((a,b)=>a.timestampSec-b.timestampSec).map(n=><div className="timeNote" key={n.id}><button type="button" className="timecodeButton" onClick={()=>{setCurrentTime(n.timestampSec);setSeekRequest({time:n.timestampSec,nonce:id()});}}><Play size={12}/>{fmtTime(n.timestampSec)}</button><p>{n.text}</p><button className="iconButton" type="button" aria-label="Remove note" onClick={()=>removeTimeNote(n.id)}><X size={13}/></button></div>)}</div>}
               <div className="overallNoteBlock"><label className="fieldBlock">Review brief / shared notes<textarea value={review.overallNote} onChange={e=>setData(old=>({...old,overallNote:e.target.value}))} placeholder="Project brief, delivery specs, deadline or shared reviewer instructions…"/></label></div>
             </div> : <div className="tabPanel qaPanel">
@@ -444,7 +444,7 @@ function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTi
   }, [asset.id, asset.fileUrl, asset.kind]);
 
   useEffect(() => {
-    if (asset.kind !== "html5-zip") return;
+    if (asset.kind !== "html5-zip" && asset.kind !== "gif") return;
     const timer=setInterval(()=>{const elapsed=(Date.now()-startedAt.current)/1000;setPreviewElapsed(elapsed);onTimeChange(elapsed);},500);
     return ()=>clearInterval(timer);
   }, [asset.id, asset.kind, onTimeChange]);
