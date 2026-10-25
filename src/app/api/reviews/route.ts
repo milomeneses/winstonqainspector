@@ -11,6 +11,8 @@ const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 250 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (declaredLength > MAX_TOTAL_BYTES + 2 * 1024 * 1024) return NextResponse.json({ error: "This review exceeds the 250 MB combined upload limit." }, { status: 413 });
   try {
     const form = await request.formData();
     const title = String(form.get("title") || "").trim().slice(0, 160) || "Untitled asset review";
