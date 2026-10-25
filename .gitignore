@@ -4,3 +4,6 @@ out/
 .env*
 .DS_Store
 *.log
+
+# Runtime review assets and metadata (never commit uploaded files)
+data/
