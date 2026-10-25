@@ -45,7 +45,7 @@ See [hostinger-deploy.md](./hostinger-deploy.md) for Hostinger notes.
 
 The unique review URL is a **bearer link**: anyone who has the URL can open and edit that review. Do not share links publicly when assets are confidential. There is no login, role management, password protection, expiration, or reviewer identity/audit trail in this MVP.
 
-Uploads and review JSON are stored in `data/reviews/<review-id>/` on the Node.js server's local filesystem. `data/` is gitignored so uploaded customer files are not committed to GitHub. This does not replace a managed database/object store: confirm that the selected hosting plan preserves writable files across redeploys, maintain backups, and move to persistent external storage before relying on this for important or long-lived client reviews. A deployment or host filesystem reset could lose records and files.
+Uploads and review JSON are stored in `data/reviews/<review-id>/` on the Node.js server's local filesystem by default. Set `WINSTON_DATA_DIR` to an absolute, writable, persistent directory if your host provides one. `data/` is gitignored so uploaded customer files are not committed to GitHub. This does not replace a managed database/object store: confirm that the selected hosting plan preserves writable files across redeploys, maintain backups, and move to persistent external storage before relying on this for important or long-lived client reviews. A deployment or host filesystem reset could lose records and files.
 
 ## Known limitations
 
