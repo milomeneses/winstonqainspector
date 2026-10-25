@@ -20,3 +20,5 @@ jobs:
         run: npm install
       - name: Build Next.js app
         run: npm run build
+      - name: Smoke test review APIs
+        run: node scripts/smoke-test.mjs
