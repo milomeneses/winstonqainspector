@@ -2,13 +2,12 @@
 
 import JSZip from "jszip";
 import { ChangeEvent, PointerEvent, SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, ArrowUpRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, Download, FileArchive, FileAudio,
-  FileImage, FilePlus2, FileText, Film, Link2, LoaderCircle, MessageSquare, Minus, Palette, Pencil, Play,
-  Plus, Save, ShieldCheck, Trash2, Video, X, XCircle
+  ArrowUpRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, Download, FileAudio,
+  FileImage, FilePlus2, FileText, Film, Link2, LoaderCircle, MessageSquare, Palette, Pencil, Play,
+  Plus, ShieldCheck, Trash2, Video, X
 } from "lucide-react";
-import { analyzeZip, formatBytes } from "@/lib/qa";
+import { analyzeZip } from "@/lib/qa";
 import { DEFAULT_RULES, type Asset, type AssetKind, type QAItem, type QAResult, type Review, type ReviewStatus, type RuleSeverity, type Stroke, type TimeNote } from "@/lib/review-types";
 
 type MediaMeta = { width?: number; height?: number; duration?: number; loaded?: boolean };
@@ -45,7 +44,6 @@ function thresholdBytes(kind: AssetKind) {
 function applicable(rule: QAItem, asset: Asset) { const scopes = rule.appliesTo as readonly string[]; return scopes.includes("all") || scopes.includes(asset.kind); }
 
 export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
-  const router = useRouter();
   const addInput = useRef<HTMLInputElement>(null);
   const latest = useRef<Review | null>(null);
   const [review, setReview] = useState<Review | null>(null);
@@ -200,8 +198,6 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
   function updateRule(ruleId: string, patch: Partial<QAItem>) {
     setData(old => ({ ...old, rules: old.rules.map(rule => rule.id === ruleId ? { ...rule, ...patch } : rule) }));
   }
-  function removeRule(ruleId: string) { setData(old => ({ ...old, rules: old.rules.filter(rule => rule.id !== ruleId) })); }
-
   async function runQA() {
     if (!review || !active) return;
     setRunBusy(true); setError("");
@@ -510,4 +506,3 @@ function AnnotationLayer({ strokes, annotate, color, width, timestamp, activeTim
   return <><div ref={stage} className="annotationStage"><canvas ref={canvas} className={"annotationCanvas "+(annotate?"drawing":"")} aria-label={annotate?"Draw feedback marks on the preview":"Preview annotations"} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}/></div></>;
 }
 
-function HtmlStageFallback() { return <div className="viewerMessage">No HTML file found.</div>; }
