@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { rm } from "node:fs/promises";
 import path from "node:path";
+import JSZip from "jszip";
 
 const port = 4317;
 const base = "http://127.0.0.1:" + port;
@@ -63,7 +64,29 @@ try {
   const afterDelete = await request(base + "/api/reviews/" + reviewId);
   if (afterDelete.data.review.assets.length !== 1) throw new Error("Asset removal was not persisted.");
 
-  console.log("PASS: create review, persist notes/status, serve uploaded asset, add asset, delete asset.");
+  const previewZip = new JSZip();
+  previewZip.file("index.html", '<!doctype html><html><head><link rel="stylesheet" href="css/style.css"></head><body><img id="pixel" src="images/pixel.svg"><div class="label">ZIP PREVIEW OK</div></body></html>');
+  previewZip.file("css/style.css", "body { background: #fafafa; } .label { color: green; }");
+  previewZip.file("images/pixel.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><rect width="2" height="2" fill="green"/></svg>');
+  const zipBytes = await previewZip.generateAsync({ type: "nodebuffer" });
+  const zipForm = new FormData();
+  zipForm.append("files", new Blob([zipBytes], { type: "application/zip" }), "qa-smoke-html5.zip");
+  const zipAdded = await request(base + "/api/reviews/" + reviewId + "/files", { method: "POST", body: zipForm });
+  const zipAsset = zipAdded.data.assets?.[0];
+  if (!zipAsset || zipAsset.kind !== "html5-zip") throw new Error("HTML5 ZIP upload/type detection failed.");
+  const previewUrl = base + "/api/reviews/" + reviewId + "/preview/" + zipAsset.id + "/__entry__";
+  const previewResponse = await fetch(previewUrl);
+  if (!previewResponse.ok) throw new Error("ZIP entry preview endpoint failed: HTTP " + previewResponse.status + " " + await previewResponse.text());
+  if (!(previewResponse.headers.get("content-type") || "").includes("text/html")) throw new Error("ZIP entry preview did not return HTML.");
+  const previewHtml = await previewResponse.text();
+  if (!previewHtml.includes("ZIP PREVIEW OK") || !previewHtml.includes("<base href=")) throw new Error("ZIP entry preview did not inject a working base path.");
+  const imageResponse = await fetch(base + "/api/reviews/" + reviewId + "/preview/" + zipAsset.id + "/images/pixel.svg");
+  if (!imageResponse.ok) throw new Error("ZIP relative image route failed: HTTP " + imageResponse.status);
+  if (!(imageResponse.headers.get("content-type") || "").includes("image/svg+xml")) throw new Error("ZIP relative image route returned the wrong content type.");
+  const imageText = await imageResponse.text();
+  if (!imageText.includes("<svg")) throw new Error("ZIP relative image bytes did not round-trip.");
+
+  console.log("PASS: create review, persist notes/status, serve uploaded asset, add/delete assets, and serve ZIP HTML/CSS/image resources with relative paths.");
 } catch (error) {
   console.error("FAIL: review API smoke test:", error);
   console.error(logs);
