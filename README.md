@@ -8,8 +8,8 @@ A multi-format creative QA and feedback workspace built with Next.js, TypeScript
 - Upload images (JPG/JPEG, PNG, WEBP, AVIF, SVG, GIF), video (MP4, MOV, WEBM and similar), audio, PDF, office documents, standalone HTML and HTML5 ZIP packages.
 - Preview image/GIF/video/audio/PDF and provide sandboxed best-effort previews for HTML/HTML5 ZIP creatives.
 - Shared review title, project brief, per-asset notes and review status.
-- Draw annotations over image, GIF, video and HTML5 ZIP previews. Video marks are time-coded; timestamp notes can be added and video notes seek to their time.
-- Enable/disable standard QA rules, add custom QA rules and record pass/fail/manual-review outcomes.
+- Draw annotations over image, GIF, video and HTML5 ZIP previews. GIFs use a frame-by-frame timeline with play/pause, frame scrubbing and timestamped comments/marks. Video marks are time-coded; timestamp notes can be added and video notes seek to their time.
+- Enable/disable standard QA rules, filter the QA rule panel to the selected asset format, scope custom rules to the current format or all formats, and record pass/fail/manual-review outcomes.
 - Static HTML5 ZIP checks: package size, root HTML, click-through pattern, external URL references and possible missing local references.
 - Download the original asset and remove assets from a review.
 - Autosave review notes, strokes, timestamp notes, statuses, rules and QA results to the application server.
