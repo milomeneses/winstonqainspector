@@ -500,7 +500,9 @@ function GifViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTime
         }
 
         const restoreBeforeCurrent = decodedFrame.disposalType === 3 ? ctx.getImageData(0, 0, width, height) : null;
-        const patch = new ImageData(decodedFrame.patch, decodedFrame.dims.width, decodedFrame.dims.height);
+        const patchPixels = new Uint8ClampedArray(decodedFrame.patch.length);
+        patchPixels.set(decodedFrame.patch);
+        const patch = new ImageData(patchPixels as ImageDataArray, decodedFrame.dims.width, decodedFrame.dims.height);
         ctx.putImageData(patch, decodedFrame.dims.left, decodedFrame.dims.top);
 
         const delayMs = Math.max(20, Number(decodedFrame.delay) || 100);
