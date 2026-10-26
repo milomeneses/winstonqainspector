@@ -8,3 +8,16 @@
 
 .ruleEditInput{display:block;width:100%;border:1px solid #dfe5ec;border-radius:6px;background:white;padding:7px 8px;margin:5px 0;font-size:10px;color:#39495b;outline-color:#a9bcf6}
 .ruleEditInput:focus{border-color:#a8bbf7}
+
+/* Frame-accurate GIF review controls */
+.gifReview{padding-bottom:12px}
+.gifStage{min-height:145px}
+.gifCanvas{image-rendering:auto}
+.gifTimeline{padding:12px 3px 0;max-width:min(100%,calc(62vh * 16 / 9));margin:0 auto}
+.gifTimelineInfo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:#6e7d8f;font-size:10px}
+.gifTimelineInfo strong{font-size:11px;font-variant-numeric:tabular-nums;color:#42536b}
+.gifTimelineInfo strong span{color:#98a2ae;font-weight:500}
+.gifFrameCount{margin-left:auto;color:#8a95a2;font-size:10px}
+.gifSeek{display:block;width:100%;margin:12px 0 5px;accent-color:#3165db;cursor:ew-resize}
+.gifTimelineHelp{font-size:9px;color:#8995a2;line-height:1.5}
+@media(max-width:760px){.gifTimeline{padding:11px 0 0}.gifTimelineInfo{gap:8px}.gifFrameCount{width:100%;margin-left:0}.gifSeek{padding:4px 0}}
