@@ -1,10 +1,11 @@
 "use client";
 
 import { ChangeEvent, PointerEvent, SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { decompressFrames, parseGIF, type ParsedFrame } from "gifuct-js";
 import {
   ArrowUpRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, Download, FileArchive, FileAudio,
   FileImage, FilePlus2, FileText, Film, Link2, LoaderCircle, MessageSquare, Palette, Pencil, Play,
-  Plus, ShieldCheck, Trash2, Video, X, XCircle
+  Pause, Plus, ShieldCheck, Trash2, Video, X, XCircle
 } from "lucide-react";
 import { analyzeZip } from "@/lib/qa";
 import { DEFAULT_RULES, type Asset, type AssetKind, type QAItem, type QAResult, type Review, type ReviewStatus, type RuleSeverity, type Stroke, type TimeNote } from "@/lib/review-types";
@@ -66,6 +67,8 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
   const [ruleName, setRuleName] = useState("");
   const [ruleDescription, setRuleDescription] = useState("");
   const [ruleSeverity, setRuleSeverity] = useState<RuleSeverity>("warning");
+  const [ruleScope, setRuleScope] = useState<"current" | "all" | AssetKind>("current");
+  const [editRuleScope, setEditRuleScope] = useState<"all" | AssetKind>("all");
   const [showNewRule, setShowNewRule] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState("");
   const [editRuleName, setEditRuleName] = useState("");
@@ -190,7 +193,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
   }
   function addRule() {
     if (!review || !ruleName.trim()) return;
-    const item: QAItem = { id: id(), name: ruleName.trim().slice(0, 160), description: ruleDescription.trim().slice(0, 1000), enabled: true, severity: ruleSeverity, appliesTo: ["all"] };
+    const item: QAItem = { id: id(), name: ruleName.trim().slice(0, 160), description: ruleDescription.trim().slice(0, 1000), enabled: true, severity: ruleSeverity, appliesTo: [ruleScope === "all" ? "all" : ruleScope === "current" ? (active?.kind || "unknown") : ruleScope] };
     setData(old => ({ ...old, rules: [...old.rules, item] }));
     setRuleName(""); setRuleDescription(""); setShowNewRule(false);
   }
@@ -346,15 +349,15 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
           <button className="shareAction" type="button" onClick={()=>copyLink()}><span className="shareIcon"><Copy size={17}/></span><span><b>Copy unique asset link</b><small>{active ? "Opens directly to "+active.originalName : "Choose an asset first"}</small></span><ArrowUpRight size={15}/></button>
           <div className="shareUrlBox"><small>SHARE URL</small><code>{url}</code><button onClick={()=>copyLink()} type="button"><Copy size={12}/>{copyMessage||"Copy asset URL"}</button><button onClick={()=>copyLink(reviewUrl)} type="button"><Link2 size={12}/>Copy all-assets review link</button></div>
           <div className="panelDivider"/>
-          <div className="rightPanelTop rulesHeader"><div><div className="eyebrow">QUALITY CONTROL</div><h3>QA rules</h3></div><button className="iconButton" type="button" aria-label="Add QA rule" onClick={()=>setShowNewRule(v=>!v)}><Plus size={17}/></button></div>
+          <div className="rightPanelTop rulesHeader"><div><div className="eyebrow">QUALITY CONTROL</div><h3>QA rules{active ? " · " + KIND_LABEL[active.kind] : ""}</h3></div><button className="iconButton" type="button" aria-label="Add QA rule" onClick={()=>setShowNewRule(v=>!v)}><Plus size={17}/></button></div>
           <p className="rulesIntro">Enable, disable, edit or add review criteria. Results are attached to the selected asset.</p>
-          <div className="ruleManager">{review.rules.map(rule=><div className={"managedRule "+(!rule.enabled?"disabled":"")} key={rule.id}>
+          <div className="ruleManager">{review.rules.filter(rule => active ? applicable(rule, active) : false).map(rule=><div className={"managedRule "+(!rule.enabled?"disabled":"")} key={rule.id}>
             <label className="toggle"><input type="checkbox" checked={rule.enabled} onChange={e=>updateRule(rule.id,{enabled:e.target.checked})}/><span/></label>
-            <div className="managedRuleBody">{editingRuleId===rule.id?<><input className="ruleEditInput" aria-label="Rule name" value={editRuleName} onChange={e=>setEditRuleName(e.target.value)}/><textarea className="ruleEditInput" aria-label="Rule description" value={editRuleDescription} onChange={e=>setEditRuleDescription(e.target.value)}/><select className="ruleEditInput" aria-label="Rule severity" value={editRuleSeverity} onChange={e=>setEditRuleSeverity(e.target.value as RuleSeverity)}><option value="blocker">Blocker</option><option value="warning">Warning</option><option value="info">Info</option></select><div className="formButtons"><button className="button secondary smallButton" type="button" onClick={()=>setEditingRuleId("")}>Cancel</button><button className="button primary smallButton" type="button" disabled={!editRuleName.trim()} onClick={()=>{updateRule(rule.id,{name:editRuleName.trim(),description:editRuleDescription.trim(),severity:editRuleSeverity});setEditingRuleId("");}}>Save</button></div></>:<><b>{rule.name}</b><small>{rule.description||"No description"}</small><span className={"severityLabel "+rule.severity}>{rule.severity}</span></>}</div>
-            <button type="button" className="iconButton deleteRule" aria-label={"Edit "+rule.name} title="Edit QA rule" onClick={()=>{setEditingRuleId(rule.id);setEditRuleName(rule.name);setEditRuleDescription(rule.description);setEditRuleSeverity(rule.severity);}}><Pencil size={13}/></button>
+            <div className="managedRuleBody">{editingRuleId===rule.id?<><input className="ruleEditInput" aria-label="Rule name" value={editRuleName} onChange={e=>setEditRuleName(e.target.value)}/><textarea className="ruleEditInput" aria-label="Rule description" value={editRuleDescription} onChange={e=>setEditRuleDescription(e.target.value)}/><select className="ruleEditInput" aria-label="Rule severity" value={editRuleSeverity} onChange={e=>setEditRuleSeverity(e.target.value as RuleSeverity)}><option value="blocker">Blocker</option><option value="warning">Warning</option><option value="info">Info</option></select><select className="ruleEditInput" aria-label="Rule applies to format" value={editRuleScope} onChange={e=>setEditRuleScope(e.target.value as "all" | AssetKind)}><option value="all">All formats</option>{Object.entries(KIND_LABEL).map(([v,label])=><option value={v} key={v}>{label} only</option>)}</select><div className="formButtons"><button className="button secondary smallButton" type="button" onClick={()=>setEditingRuleId("")}>Cancel</button><button className="button primary smallButton" type="button" disabled={!editRuleName.trim()} onClick={()=>{updateRule(rule.id,{name:editRuleName.trim(),description:editRuleDescription.trim(),severity:editRuleSeverity,appliesTo:[editRuleScope]});setEditingRuleId("");}}>Save</button></div></>:<><b>{rule.name}</b><small>{rule.description||"No description"}</small><span className={"severityLabel "+rule.severity}>{rule.severity}</span></>}</div>
+            <button type="button" className="iconButton deleteRule" aria-label={"Edit "+rule.name} title="Edit QA rule" onClick={()=>{setEditingRuleId(rule.id);setEditRuleName(rule.name);setEditRuleDescription(rule.description);setEditRuleSeverity(rule.severity);setEditRuleScope(rule.appliesTo.includes("all") ? "all" : (rule.appliesTo[0] || "all") as AssetKind);}}><Pencil size={13}/></button>
             {!DEFAULT_RULES.some(d=>d.id===rule.id)&&<button type="button" className="iconButton deleteRule" aria-label={"Delete "+rule.name} title="Delete QA rule" onClick={()=>setData(old=>({...old,rules:old.rules.filter(r=>r.id!==rule.id)}))}><Trash2 size={13}/></button>}
           </div>)}</div>
-          {showNewRule&&<div className="newRuleForm"><h4>New QA rule</h4><label>Name<input value={ruleName} onChange={e=>setRuleName(e.target.value)} placeholder="e.g. Legal copy present"/></label><label>What to check<textarea value={ruleDescription} onChange={e=>setRuleDescription(e.target.value)} placeholder="Describe the acceptance criteria…"/></label><label>Severity<select value={ruleSeverity} onChange={e=>setRuleSeverity(e.target.value as RuleSeverity)}><option value="blocker">Blocker</option><option value="warning">Warning</option><option value="info">Info</option></select></label><div className="formButtons"><button type="button" className="button secondary smallButton" onClick={()=>setShowNewRule(false)}>Cancel</button><button type="button" className="button primary smallButton" onClick={addRule} disabled={!ruleName.trim()}><Plus size={13}/> Add rule</button></div></div>}
+          {showNewRule&&<div className="newRuleForm"><h4>New QA rule</h4><label>Name<input value={ruleName} onChange={e=>setRuleName(e.target.value)} placeholder="e.g. Legal copy present"/></label><label>What to check<textarea value={ruleDescription} onChange={e=>setRuleDescription(e.target.value)} placeholder="Describe the acceptance criteria…"/></label><label>Severity<select value={ruleSeverity} onChange={e=>setRuleSeverity(e.target.value as RuleSeverity)}><option value="blocker">Blocker</option><option value="warning">Warning</option><option value="info">Info</option></select></label><label>Applies to<select value={ruleScope} onChange={e=>setRuleScope(e.target.value as "current" | "all" | AssetKind)}><option value="current">Selected format only ({active ? KIND_LABEL[active.kind] : "current asset"})</option><option value="all">All formats</option>{Object.entries(KIND_LABEL).map(([v,label])=><option value={v} key={v}>{label} only</option>)}</select></label><div className="formButtons"><button type="button" className="button secondary smallButton" onClick={()=>setShowNewRule(false)}>Cancel</button><button type="button" className="button primary smallButton" onClick={addRule} disabled={!ruleName.trim()}><Plus size={13}/> Add rule</button></div></div>}
           <div className="ruleHelp"><ShieldCheck size={16}/><p><b>Rules are a checklist, not certification.</b><br/>Use objective rules for file checks and manual results for creative, brand, legal and platform requirements.</p></div>
           {active&&<><div className="panelDivider"/><div className="assetActions"><h3>Selected asset</h3><div><span>Review status</span><strong className={"statusText "+STATUS_CLASS[active.status]}>{STATUS_LABEL[active.status]}</strong></div><div><span>Uploaded</span><strong>{new Date(active.uploadedAt).toLocaleDateString()}</strong></div><div><span>File size</span><strong>{niceSize(active.size)}</strong></div><button className="removeAssetButton" type="button" onClick={()=>removeAsset(active)}><Trash2 size={14}/>{confirmRemoveId===active.id?"Confirm remove asset":"Remove asset"}</button>{confirmRemoveId===active.id&&<small className="removeConfirm">Click again to permanently remove this asset from the review.</small>}</div></>}
         </aside>
@@ -403,7 +406,7 @@ function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTi
   }, [asset.id, asset.fileUrl, asset.kind]);
 
   useEffect(() => {
-    if (asset.kind !== "html5-zip" && asset.kind !== "gif") return;
+    if (asset.kind !== "html5-zip") return;
     const timer=setInterval(()=>{const elapsed=(Date.now()-startedAt.current)/1000;setPreviewElapsed(elapsed);onTimeChange(elapsed);},500);
     return ()=>clearInterval(timer);
   }, [asset.id, asset.kind, onTimeChange]);
@@ -414,7 +417,7 @@ function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTi
   const metaImage=(e: SyntheticEvent<HTMLImageElement>)=>{const el=e.currentTarget;setRatio(el.naturalWidth&&el.naturalHeight?el.naturalWidth/el.naturalHeight:16/9);onMetadata({width:el.naturalWidth,height:el.naturalHeight,loaded:true});};
   const videoMeta=(e: SyntheticEvent<HTMLVideoElement>)=>{const el=e.currentTarget;setRatio(el.videoWidth&&el.videoHeight?el.videoWidth/el.videoHeight:16/9);onMetadata({width:el.videoWidth,height:el.videoHeight,duration:el.duration,loaded:true});};
 
-  if (asset.kind==="image"||asset.kind==="gif") return <div className="assetStageOuter"><div className="assetStage imageStage" style={{aspectRatio:ratio,maxWidth:"min(100%, calc(62vh * "+ratio+"))"}}><img className="assetMedia" src={asset.fileUrl} alt={asset.originalName} onLoad={metaImage} onError={()=>onError("Image preview failed. The file may be corrupt or use an unsupported codec.")}/><AnnotationLayer key={asset.id} strokes={asset.strokes} annotate={annotating} color={brushColor} width={brushWidth} timestamp={null} activeTime={null} onStroke={onStroke}/></div></div>;
+  if (asset.kind==="gif") return <GifViewer asset={asset} annotating={annotating} brushColor={brushColor} brushWidth={brushWidth} onStroke={onStroke} onTimeChange={onTimeChange} seekRequest={seekRequest} onMetadata={onMetadata} onError={onError}/>;\n  if (asset.kind==="image") return <div className="assetStageOuter"><div className="assetStage imageStage" style={{aspectRatio:ratio,maxWidth:"min(100%, calc(62vh * "+ratio+"))"}}><img className="assetMedia" src={asset.fileUrl} alt={asset.originalName} onLoad={metaImage} onError={()=>onError("Image preview failed. The file may be corrupt or use an unsupported codec.")}/><AnnotationLayer key={asset.id} strokes={asset.strokes} annotate={annotating} color={brushColor} width={brushWidth} timestamp={null} activeTime={null} onStroke={onStroke}/></div></div>;
   if (asset.kind==="video") return <div className="assetStageOuter"><div className="assetStage" style={{aspectRatio:ratio,maxWidth:"min(100%, calc(62vh * "+ratio+"))"}}><video ref={videoRef} className="assetMedia" src={asset.fileUrl} controls playsInline preload="metadata" onTimeUpdate={onVideoTime} onLoadedMetadata={videoMeta} onError={()=>onError("Video preview failed. This browser may not support the codec or container.")}/><AnnotationLayer key={asset.id} strokes={asset.strokes} annotate={annotating} color={brushColor} width={brushWidth} timestamp={currentTime} activeTime={currentTime} onStroke={onStroke}/></div><div className="videoTimeBar"><span><Video size={14}/> {fmtTime(currentTime)}</span><span>{metadataDurationText(videoRef.current?.duration)}</span><input type="range" aria-label="Seek video" min="0" max={Number.isFinite(videoRef.current?.duration)?videoRef.current!.duration:0} step=".1" value={Number.isFinite(videoRef.current?.duration)?Math.min(currentTime,videoRef.current!.duration):0} onChange={e=>{if(videoRef.current){videoRef.current.currentTime=Number(e.target.value);setCurrentTime(Number(e.target.value));onTimeChange(Number(e.target.value));}}}/></div></div>;
   if (asset.kind==="audio") return <div className="audioStage"><div className="audioArtwork"><FileAudio size={42}/></div><h3>{asset.originalName}</h3><p>{niceSize(asset.size)} · Audio file</p><audio src={asset.fileUrl} controls onLoadedMetadata={e=>onMetadata({duration:e.currentTarget.duration,loaded:true})} onError={()=>onError("Audio preview failed. This browser may not support the codec.")}/><div className="audioHint">Check the full playback, levels and content against your brief.</div></div>;
   if (asset.kind==="html") return <div className="htmlFileStage"><div className="assetStage htmlStage" style={{aspectRatio:"16/9"}}>{zipError?<div className="viewerMessage"><CircleAlert size={23}/>{zipError}</div>:!htmlSource?<div className="viewerMessage"><LoaderCircle size={22} className="spinning"/>Loading HTML preview…</div>:<iframe className="htmlPreview" title={"HTML file: "+asset.originalName} sandbox="allow-scripts" srcDoc={htmlSource}/>}</div><div className="viewerCaption"><span>Standalone HTML is sandboxed; relative assets outside this file may not load.</span><a href={asset.fileUrl} download={asset.originalName}>Download HTML</a></div></div>;
@@ -426,8 +429,8 @@ function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTi
 
 function metadataDurationText(value: number | undefined) { return value && Number.isFinite(value) ? fmtTime(value) : "Duration pending"; }
 
-function AnnotationLayer({ strokes, annotate, color, width, timestamp, activeTime, onStroke }: {
-  strokes: Stroke[]; annotate: boolean; color: string; width: number; timestamp: number | null; activeTime: number | null;
+function AnnotationLayer({ strokes, annotate, color, width, timestamp, activeTime, timeTolerance, onStroke }: {
+  strokes: Stroke[]; annotate: boolean; color: string; width: number; timestamp: number | null; activeTime: number | null; timeTolerance?: number;
   onStroke: (stroke: Stroke) => void;
 }) {
   const stage = useRef<HTMLDivElement>(null);
@@ -448,7 +451,7 @@ function AnnotationLayer({ strokes, annotate, color, width, timestamp, activeTim
     const ctx=c.getContext("2d");if(!ctx)return;ctx.scale(dpr,dpr);ctx.clearRect(0,0,size.w,size.h);
     const all=[...strokes,...(draft?[draft]:[])];
     for(const s of all){
-      if(s.timestampSec!==null&&activeTime!==null&&Math.abs(activeTime-s.timestampSec)>1.2)continue;
+      if(s.timestampSec!==null&&activeTime!==null&&Math.abs(activeTime-s.timestampSec)>(timeTolerance ?? 1.2))continue;
       if(s.timestampSec!==null&&activeTime===null)continue;
       if(s.points.length===0)continue;
       ctx.strokeStyle=s.color;ctx.lineWidth=s.width;ctx.lineCap="round";ctx.lineJoin="round";
