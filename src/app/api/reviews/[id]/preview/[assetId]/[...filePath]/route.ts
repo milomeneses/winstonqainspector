@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
-import { NextResponse } from "next/server";
 import type { Review } from "@/lib/review-types";
 
 export const runtime = "nodejs";
@@ -37,13 +36,13 @@ function encodePath(value: string) {
   return value.split("/").map(part => encodeURIComponent(part)).join("/");
 }
 function rootRelativeToPreview(source: string, prefix: string) {
-  return source.replace(/(\\b(?:src|href|poster|action|data|xlink:href)\\s*=\\s*)(["'])(\\/(?!\\/)[^"']*)\\2/gi,
+  return source.replace(/(\b(?:src|href|poster|action|data|xlink:href)\s*=\s*)(["'])(\/(?!\/)[^"']*)\2/gi,
     (_full, attr: string, quote: string, ref: string) => attr + quote + prefix + ref.slice(1) + quote)
-    .replace(/url\\(\\s*(["']?)(\\/(?!\\/)[^)'"]+)\\1\\s*\\)/gi,
+    .replace(/url\(\s*(["']?)(\/(?!\/)[^)'"]+)\1\s*\)/gi,
       (_full, quote: string, ref: string) => "url(" + quote + prefix + ref.slice(1) + quote + ")");
 }
 function makeCsp() {
-  return "default-src 'self' data: blob: https:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' blob: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:; font-src 'self' data: blob: https:; connect-src 'self' https: http:; object-src 'none'; form-action 'none'; frame-ancestors 'self'";
+  return "default-src 'self' data: blob: http: https:; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:; style-src 'self' 'unsafe-inline' blob: http: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: http: https:; font-src 'self' data: blob: http: https:; connect-src 'self' http: https:; object-src 'none'; form-action 'none'; frame-ancestors 'self'";
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string; assetId: string; filePath: string[] }> }) {
@@ -66,7 +65,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     }
     const archive = await JSZip.loadAsync(bytes, { checkCRC32: false });
     const entry = requestPath === "__entry__"
-      ? Object.values(archive.files).filter(item => !item.dir && /\\.html?$/i.test(item.name) && !item.name.startsWith("__MACOSX/")).sort((a, b) => (a.name.includes("/") ? 1 : 0) - (b.name.includes("/") ? 1 : 0))[0]
+      ? Object.values(archive.files).filter(item => !item.dir && /\.html?$/i.test(item.name) && !item.name.startsWith("__MACOSX/")).sort((a, b) => (a.name.includes("/") ? 1 : 0) - (b.name.includes("/") ? 1 : 0))[0]
       : archive.file(requestPath);
     if (!entry || entry.dir) return new Response("Preview asset not found: " + requestPath, { status: 404 });
     const actualPath = entry.name;
@@ -80,7 +79,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       const previewRoot = "/api/reviews/" + id + "/preview/" + assetId + "/";
       const directory = actualPath.includes("/") ? actualPath.slice(0, actualPath.lastIndexOf("/") + 1) : "";
       const base = previewRoot + encodePath(directory);
-      html = html.replace(/<base\\b[^>]*>/gi, "");
+      html = html.replace(/<base\b[^>]*>/gi, "");
       html = rootRelativeToPreview(html, previewRoot);
       const baseTag = '<base href="' + base + '">';
       if (/<head[^>]*>/i.test(html)) html = html.replace(/<head([^>]*)>/i, "<head$1>" + baseTag);
@@ -89,9 +88,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     } else if (extension === "css") {
       let css = await entry.async("string");
       const previewRoot = "/api/reviews/" + id + "/preview/" + assetId + "/";
-      css = css.replace(/url\\(\\s*(["']?)(\\/(?!\\/)[^)'"]+)\\1\\s*\\)/gi,
+      css = css.replace(/url\(\s*(["']?)(\/(?!\/)[^)'"]+)\1\s*\)/gi,
         (_full, quote: string, ref: string) => "url(" + quote + previewRoot + ref.slice(1) + quote + ")");
       output = Buffer.from(css, "utf8");
+    } else if (extension === "js" || extension === "mjs") {
+      let script = await entry.async("string");
+      const previewRoot = "/api/reviews/" + id + "/preview/" + assetId + "/";
+      script = script.replace(/(["'])\/(?!\/)([^"']+)\1/g, (_full, quote: string, ref: string) => quote + previewRoot + ref + quote);
+      output = Buffer.from(script, "utf8");
     } else {
       output = Buffer.from(await entry.async("uint8array"));
     }
