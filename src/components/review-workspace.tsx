@@ -386,7 +386,7 @@ function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTi
   useEffect(() => {
     if (asset.kind !== "html5-zip") return;
     let cancelled = false;
-    const previewUrl = asset.fileUrl.replace(/\\/files\\/[^/]+$/, "/preview/" + asset.id + "/__entry__");
+    const previewUrl = asset.fileUrl.replace(/\/files\/[^/]+$/, "/preview/" + asset.id + "/__entry__");
     setLoadingZip(true);
     setZipHtml("");
     setZipError("");
