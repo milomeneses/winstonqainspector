@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
+import { decompressFrames, parseGIF } from "gifuct-js";
 
 const port = 4317;
 const base = "http://127.0.0.1:" + port;
@@ -22,6 +23,12 @@ async function request(url, options) {
 }
 let reviewId = "";
 try {
+  const gifFixture = Buffer.from("R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQICgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQIFAAAACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7", "base64");
+  const parsedGif = parseGIF(gifFixture.buffer.slice(gifFixture.byteOffset, gifFixture.byteOffset + gifFixture.byteLength));
+  const gifFrames = decompressFrames(parsedGif, true);
+  if (parsedGif.lsd.width !== 2 || parsedGif.lsd.height !== 2 || gifFrames.length !== 2) throw new Error("Animated GIF frame decoder fixture failed.");
+  if (!gifFrames.every(frame => frame.patch.length > 0)) throw new Error("GIF frame patches were not decoded.");
+
   let ready = false;
   for (let i = 0; i < 60; i++) {
     if (server.exitCode !== null) throw new Error("Next server exited early: " + logs);
@@ -86,7 +93,7 @@ try {
   const imageText = await imageResponse.text();
   if (!imageText.includes("<svg")) throw new Error("ZIP relative image bytes did not round-trip.");
 
-  console.log("PASS: create review, persist notes/status, serve uploaded asset, add/delete assets, and serve ZIP HTML/CSS/image resources with relative paths.");
+  console.log("PASS: decode animated GIF frames; create review, persist notes/status, serve uploaded asset, add/delete assets, and serve ZIP HTML/CSS/image resources with relative paths.");
 } catch (error) {
   console.error("FAIL: review API smoke test:", error);
   console.error(logs);
