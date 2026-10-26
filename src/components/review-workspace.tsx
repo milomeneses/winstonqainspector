@@ -30,6 +30,12 @@ function niceSize(n: number) {
   return value.toFixed(2) + " " + units[i];
 }
 function id() { return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36); }
+function fmtPreciseTime(value: number) {
+  const safe = Math.max(0, value);
+  const minutes = Math.floor(safe / 60);
+  const seconds = (safe % 60).toFixed(2).padStart(5, "0");
+  return String(minutes).padStart(2, "0") + ":" + seconds;
+}
 function fmtTime(value: number) {
   const m = Math.floor(Math.max(0, value) / 60), s = Math.floor(Math.max(0, value) % 60), ms = Math.floor((Math.max(0, value) % 1) * 10);
   return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") + (ms ? "." + ms : "");
@@ -327,8 +333,8 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
             {activeTab==="feedback" ? <div className="tabPanel feedbackPanel">
               <div className="assetStatusRow"><div><b>Asset status</b><small>Visible to everyone who has this review link.</small></div><select aria-label="Asset status" value={active.status} onChange={e=>updateAsset(active.id,{status:e.target.value as ReviewStatus})}>{Object.entries(STATUS_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
               <label className="fieldBlock">Asset notes<textarea value={active.note} onChange={e=>updateAsset(active.id,{note:e.target.value})} placeholder="Add a comment for the creator: what to change, where to look, or what needs approval…"/></label>
-              {(active.kind==="video"||active.kind==="html5-zip"||active.kind==="gif") && <div className="timestampComposer"><div className="timeStampNow"><Clock3 size={15}/><b>{fmtTime(currentTime)}</b><span>{active.kind==="video"?"Current video time":active.kind==="gif"?"Selected GIF frame time":"Preview elapsed time"}</span></div><textarea value={timeNoteText} onChange={e=>setTimeNoteText(e.target.value)} placeholder="Add feedback at this moment…"/><button className="button secondary smallButton" disabled={!timeNoteText.trim()} onClick={addTimeNote} type="button"><Plus size={14}/> Add timestamp note</button></div>}
-              {active.timeNotes.length>0 && <div className="timeNotesList"><h3>Timestamp notes</h3>{active.timeNotes.slice().sort((a,b)=>a.timestampSec-b.timestampSec).map(n=><div className="timeNote" key={n.id}><button type="button" className="timecodeButton" onClick={()=>{setCurrentTime(n.timestampSec);setSeekRequest({time:n.timestampSec,nonce:id()});}}><Play size={12}/>{fmtTime(n.timestampSec)}</button><p>{n.text}</p><button className="iconButton" type="button" aria-label="Remove note" onClick={()=>removeTimeNote(n.id)}><X size={13}/></button></div>)}</div>}
+              {(active.kind==="video"||active.kind==="html5-zip"||active.kind==="gif") && <div className="timestampComposer"><div className="timeStampNow"><Clock3 size={15}/><b>{active.kind==="gif" ? fmtPreciseTime(currentTime) : fmtTime(currentTime)}</b><span>{active.kind==="video"?"Current video time":active.kind==="gif"?"Selected GIF frame time":"Preview elapsed time"}</span></div><textarea value={timeNoteText} onChange={e=>setTimeNoteText(e.target.value)} placeholder="Add feedback at this moment…"/><button className="button secondary smallButton" disabled={!timeNoteText.trim()} onClick={addTimeNote} type="button"><Plus size={14}/> Add timestamp note</button></div>}
+              {active.timeNotes.length>0 && <div className="timeNotesList"><h3>Timestamp notes</h3>{active.timeNotes.slice().sort((a,b)=>a.timestampSec-b.timestampSec).map(n=><div className="timeNote" key={n.id}><button type="button" className="timecodeButton" onClick={()=>{setCurrentTime(n.timestampSec);setSeekRequest({time:n.timestampSec,nonce:id()});}}><Play size={12}/>{active.kind==="gif" ? fmtPreciseTime(n.timestampSec) : fmtTime(n.timestampSec)}</button><p>{n.text}</p><button className="iconButton" type="button" aria-label="Remove note" onClick={()=>removeTimeNote(n.id)}><X size={13}/></button></div>)}</div>}
               <div className="overallNoteBlock"><label className="fieldBlock">Review brief / shared notes<textarea value={review.overallNote} onChange={e=>setData(old=>({...old,overallNote:e.target.value}))} placeholder="Project brief, delivery specs, deadline or shared reviewer instructions…"/></label></div>
             </div> : <div className="tabPanel qaPanel">
               <div className="qaToolbar"><div><b>QA inspection</b><small>Run the enabled rules on this asset, then mark any manual checks.</small></div><button type="button" className="button primary smallButton" disabled={runBusy} onClick={runQA}>{runBusy?<LoaderCircle size={14} className="spinning"/>:<ShieldCheck size={14}/>} {runBusy?"Running…":"Run QA"}</button></div>
@@ -598,7 +604,7 @@ function GifViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTime
         <button type="button" className="button secondary smallButton" onClick={() => setPlaying(value => !value)} aria-label={playing ? "Pause GIF timeline" : "Play GIF timeline"}>
           {playing ? <Pause size={14}/> : <Play size={14}/>} {playing ? "Pause" : "Play"}
         </button>
-        <strong>{fmtTime(currentTime)} <span>/ {fmtTime(duration)}</span></strong>
+        <strong>{fmtPreciseTime(currentTime)} <span>/ {fmtPreciseTime(duration)}</span></strong>
         <span className="gifFrameCount">Frame {frameIndex + 1} of {frames.length}</span>
       </div>
       <input className="gifSeek" type="range" aria-label="Choose GIF frame time" min="0" max={Math.max(duration, 0.01)} step="0.01" value={Math.min(currentTime, duration)} onChange={e => selectTime(Number(e.target.value))}/>
