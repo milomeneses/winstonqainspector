@@ -1,6 +1,5 @@
 "use client";
 
-import JSZip from "jszip";
 import { ChangeEvent, PointerEvent, SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, Download, FileArchive, FileAudio,
@@ -386,61 +385,21 @@ function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTi
 
   useEffect(() => {
     if (asset.kind !== "html5-zip") return;
-    let cancelled = false; let urls: string[] = [];
-    setLoadingZip(true); setZipHtml(""); setZipError("");
-    (async () => {
-      const response = await fetch(asset.fileUrl);
-      if (!response.ok) throw new Error("The uploaded ZIP could not be read.");
-      const archive = await JSZip.loadAsync(await response.arrayBuffer());
-      const entries = Object.values(archive.files).filter(e=>!e.dir && !e.name.startsWith("__MACOSX/"));
-      const html = entries.filter(e=>/\.html?$/i.test(e.name)).sort((a,b)=>(a.name.includes("/")?1:0)-(b.name.includes("/")?1:0))[0];
-      if (!html) throw new Error("No HTML entry point was found in this ZIP.");
-      const map = new Map<string,string>();
-      const mimetype = (p: string) => {
-        const ext=p.split(".").pop()?.toLowerCase();
-        const types: Record<string,string>={html:"text/html",htm:"text/html",css:"text/css",js:"text/javascript",mjs:"text/javascript",json:"application/json",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",svg:"image/svg+xml",webp:"image/webp",avif:"image/avif",mp4:"video/mp4",webm:"video/webm",woff:"font/woff",woff2:"font/woff2",ttf:"font/ttf",otf:"font/otf"};
-        return types[ext||""]||"application/octet-stream";
-      };
-      for (const entry of entries) {
-        if (entry.name===html.name) continue;
-        const blob = await entry.async("blob");
-        const typed = new Blob([blob],{type:mimetype(entry.name)});
-        const u=URL.createObjectURL(typed); urls.push(u); map.set(entry.name,u);
-      }
-      const normalize = (ref: string, base: string) => {
-        try {
-          const clean=decodeURIComponent(ref.split("#")[0].split("?")[0]);
-          if (!clean || /^(https?:|data:|blob:|javascript:|mailto:|tel:|\/\/)/i.test(clean) || clean.startsWith("#")) return null;
-          const parts=(clean.startsWith("/")?clean.replace(/^\//,""):base.split("/").slice(0,-1).concat(clean.split("/")).join("/")).split("/");
-          const out:string[]=[];
-          parts.forEach(p=>{if(p===".." )out.pop();else if(p&&p!==".")out.push(p);});
-          return out.join("/");
-        } catch { return null; }
-      };
-      const cssEntries=entries.filter(e=>/\.css$/i.test(e.name));
-      for (const entry of cssEntries) {
-        const css=await entry.async("string");
-        const rewritten=css.replace(/url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi,(full,_q:string,ref:string)=>{
-          const target=normalize(ref,entry.name); return target&&map.has(target)?"url('"+map.get(target)+"')":full;
-        });
-        const replacement=URL.createObjectURL(new Blob([rewritten],{type:"text/css"})); urls.push(replacement); map.set(entry.name,replacement);
-      }
-      let source=await html.async("string");
-      source=source.replace(/<base\b[^>]*>/gi,"");
-      source=source.replace(/\b(src|href|poster)\s*=\s*(["'])(.*?)\2/gi,(full,attr:string,q:string,ref:string)=>{
-        if (/^(https?:|data:|blob:|javascript:|mailto:|tel:|\/\/|#)/i.test(ref)) return full;
-        const target=normalize(ref,html.name); return target&&map.has(target)?attr+"="+q+map.get(target)+q:full;
-      });
-      source=source.replace(/url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi,(full,_q:string,ref:string)=>{
-        const target=normalize(ref,html.name); return target&&map.has(target)?"url('"+map.get(target)+"')":full;
-      });
-      const csp="<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self' blob: data:; img-src 'self' blob: data:; media-src 'self' blob: data:; font-src 'self' blob: data:; style-src 'self' 'unsafe-inline' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'none'; object-src 'none'; form-action 'none'\">";
-      if (/<head[^>]*>/i.test(source)) source=source.replace(/<head([^>]*)>/i,"<head$1>"+csp);
-      else source="<!doctype html><html><head>"+csp+"</head><body>"+source+"</body></html>";
-      if (!cancelled) setZipHtml(source);
-    })().catch(e=>{if(!cancelled)setZipError(e instanceof Error?e.message:"Could not preview ZIP contents.");})
-      .finally(()=>{if(!cancelled)setLoadingZip(false);});
-    return ()=>{cancelled=true;urls.forEach(URL.revokeObjectURL);};
+    let cancelled = false;
+    const previewUrl = asset.fileUrl.replace(/\\/files\\/[^/]+$/, "/preview/" + asset.id + "/__entry__");
+    setLoadingZip(true);
+    setZipHtml("");
+    setZipError("");
+    fetch(previewUrl, { cache: "no-store" })
+      .then(async response => {
+        if (!response.ok) throw new Error(await response.text() || "Could not load the HTML5 ZIP entry point.");
+        const type = response.headers.get("content-type") || "";
+        if (!type.includes("text/html")) throw new Error("No HTML entry point was found in this ZIP.");
+        if (!cancelled) setZipHtml(previewUrl);
+      })
+      .catch(e => { if (!cancelled) setZipError(e instanceof Error ? e.message : "Could not preview ZIP contents."); })
+      .finally(() => { if (!cancelled) setLoadingZip(false); });
+    return () => { cancelled = true; };
   }, [asset.id, asset.fileUrl, asset.kind]);
 
   useEffect(() => {
@@ -460,7 +419,7 @@ function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTi
   if (asset.kind==="audio") return <div className="audioStage"><div className="audioArtwork"><FileAudio size={42}/></div><h3>{asset.originalName}</h3><p>{niceSize(asset.size)} · Audio file</p><audio src={asset.fileUrl} controls onLoadedMetadata={e=>onMetadata({duration:e.currentTarget.duration,loaded:true})} onError={()=>onError("Audio preview failed. This browser may not support the codec.")}/><div className="audioHint">Check the full playback, levels and content against your brief.</div></div>;
   if (asset.kind==="html") return <div className="htmlFileStage"><div className="assetStage htmlStage" style={{aspectRatio:"16/9"}}>{zipError?<div className="viewerMessage"><CircleAlert size={23}/>{zipError}</div>:!htmlSource?<div className="viewerMessage"><LoaderCircle size={22} className="spinning"/>Loading HTML preview…</div>:<iframe className="htmlPreview" title={"HTML file: "+asset.originalName} sandbox="allow-scripts" srcDoc={htmlSource}/>}</div><div className="viewerCaption"><span>Standalone HTML is sandboxed; relative assets outside this file may not load.</span><a href={asset.fileUrl} download={asset.originalName}>Download HTML</a></div></div>;
   if (asset.kind==="pdf") return <div className="pdfStage"><iframe title={"PDF preview: "+asset.originalName} src={asset.fileUrl} onLoad={()=>onMetadata({loaded:true})}/></div>;
-  if (asset.kind==="html5-zip") return <div className="assetStageOuter"><div className="assetStage htmlStage" style={{aspectRatio:"16/9"}}>{loadingZip?<div className="viewerMessage"><LoaderCircle size={23} className="spinning"/>Unpacking creative for isolated preview…</div>:zipError?<div className="viewerMessage"><CircleAlert size={23}/><b>Preview unavailable</b><p>{zipError}</p><a href={asset.fileUrl} download={asset.originalName}>Download the original ZIP</a></div>:<><iframe className="htmlPreview" title={"HTML5 preview: "+asset.originalName} sandbox="allow-scripts allow-forms" srcDoc={zipHtml}/><AnnotationLayer key={asset.id} strokes={asset.strokes} annotate={annotating} color={brushColor} width={brushWidth} timestamp={previewElapsed} activeTime={previewElapsed} onStroke={onStroke}/></>}</div><div className="viewerCaption"><span><ShieldCheck size={13}/> Isolated sandbox preview; some creatives may behave differently from the ad platform.</span><a href={asset.fileUrl} download={asset.originalName}>Download ZIP</a></div></div>;
+  if (asset.kind==="html5-zip") return <div className="assetStageOuter"><div className="assetStage htmlStage" style={{aspectRatio:"16/9"}}>{loadingZip?<div className="viewerMessage"><LoaderCircle size={23} className="spinning"/>Unpacking creative for isolated preview…</div>:zipError?<div className="viewerMessage"><CircleAlert size={23}/><b>Preview unavailable</b><p>{zipError}</p><a href={asset.fileUrl} download={asset.originalName}>Download the original ZIP</a></div>:<><iframe className="htmlPreview" title={"HTML5 preview: "+asset.originalName} sandbox="allow-scripts allow-forms" src={zipHtml}/><AnnotationLayer key={asset.id} strokes={asset.strokes} annotate={annotating} color={brushColor} width={brushWidth} timestamp={previewElapsed} activeTime={previewElapsed} onStroke={onStroke}/></>}</div><div className="viewerCaption"><span><ShieldCheck size={13}/> Isolated sandbox preview; some creatives may behave differently from the ad platform.</span><a href={asset.fileUrl} download={asset.originalName}>Download ZIP</a></div></div>;
   if (asset.kind==="document") return <div className="unsupportedStage"><FileText size={40}/><h3>Document received</h3><p>This format is stored with the review. Inline preview is not available for this office document type.</p><a className="button secondary smallButton" href={asset.fileUrl} download={asset.originalName}><Download size={14}/> Download document</a></div>;
   return <div className="unsupportedStage"><FileText size={40}/><h3>File stored for review</h3><p>No inline preview is available for this format. The file can still have notes, QA status and a unique review link.</p><a className="button secondary smallButton" href={asset.fileUrl} download={asset.originalName}><Download size={14}/> Download original</a></div>;
 }
