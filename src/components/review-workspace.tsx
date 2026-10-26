@@ -327,7 +327,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
             {activeTab==="feedback" ? <div className="tabPanel feedbackPanel">
               <div className="assetStatusRow"><div><b>Asset status</b><small>Visible to everyone who has this review link.</small></div><select aria-label="Asset status" value={active.status} onChange={e=>updateAsset(active.id,{status:e.target.value as ReviewStatus})}>{Object.entries(STATUS_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
               <label className="fieldBlock">Asset notes<textarea value={active.note} onChange={e=>updateAsset(active.id,{note:e.target.value})} placeholder="Add a comment for the creator: what to change, where to look, or what needs approval…"/></label>
-              {(active.kind==="video"||active.kind==="html5-zip"||active.kind==="gif") && <div className="timestampComposer"><div className="timeStampNow"><Clock3 size={15}/><b>{fmtTime(currentTime)}</b><span>{active.kind==="video"?"Current video time":active.kind==="gif"?"Elapsed viewing time (not the exact GIF frame)":"Preview elapsed time"}</span></div><textarea value={timeNoteText} onChange={e=>setTimeNoteText(e.target.value)} placeholder="Add feedback at this moment…"/><button className="button secondary smallButton" disabled={!timeNoteText.trim()} onClick={addTimeNote} type="button"><Plus size={14}/> Add timestamp note</button></div>}
+              {(active.kind==="video"||active.kind==="html5-zip"||active.kind==="gif") && <div className="timestampComposer"><div className="timeStampNow"><Clock3 size={15}/><b>{fmtTime(currentTime)}</b><span>{active.kind==="video"?"Current video time":active.kind==="gif"?"Selected GIF frame time":"Preview elapsed time"}</span></div><textarea value={timeNoteText} onChange={e=>setTimeNoteText(e.target.value)} placeholder="Add feedback at this moment…"/><button className="button secondary smallButton" disabled={!timeNoteText.trim()} onClick={addTimeNote} type="button"><Plus size={14}/> Add timestamp note</button></div>}
               {active.timeNotes.length>0 && <div className="timeNotesList"><h3>Timestamp notes</h3>{active.timeNotes.slice().sort((a,b)=>a.timestampSec-b.timestampSec).map(n=><div className="timeNote" key={n.id}><button type="button" className="timecodeButton" onClick={()=>{setCurrentTime(n.timestampSec);setSeekRequest({time:n.timestampSec,nonce:id()});}}><Play size={12}/>{fmtTime(n.timestampSec)}</button><p>{n.text}</p><button className="iconButton" type="button" aria-label="Remove note" onClick={()=>removeTimeNote(n.id)}><X size={13}/></button></div>)}</div>}
               <div className="overallNoteBlock"><label className="fieldBlock">Review brief / shared notes<textarea value={review.overallNote} onChange={e=>setData(old=>({...old,overallNote:e.target.value}))} placeholder="Project brief, delivery specs, deadline or shared reviewer instructions…"/></label></div>
             </div> : <div className="tabPanel qaPanel">
@@ -425,6 +425,181 @@ function AssetViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTi
   if (asset.kind==="html5-zip") return <div className="assetStageOuter"><div className="assetStage htmlStage" style={{aspectRatio:"16/9"}}>{loadingZip?<div className="viewerMessage"><LoaderCircle size={23} className="spinning"/>Unpacking creative for isolated preview…</div>:zipError?<div className="viewerMessage"><CircleAlert size={23}/><b>Preview unavailable</b><p>{zipError}</p><a href={asset.fileUrl} download={asset.originalName}>Download the original ZIP</a></div>:<><iframe className="htmlPreview" title={"HTML5 preview: "+asset.originalName} sandbox="allow-scripts allow-forms" src={zipHtml}/><AnnotationLayer key={asset.id} strokes={asset.strokes} annotate={annotating} color={brushColor} width={brushWidth} timestamp={previewElapsed} activeTime={previewElapsed} onStroke={onStroke}/></>}</div><div className="viewerCaption"><span><ShieldCheck size={13}/> Isolated sandbox preview; some creatives may behave differently from the ad platform.</span><a href={asset.fileUrl} download={asset.originalName}>Download ZIP</a></div></div>;
   if (asset.kind==="document") return <div className="unsupportedStage"><FileText size={40}/><h3>Document received</h3><p>This format is stored with the review. Inline preview is not available for this office document type.</p><a className="button secondary smallButton" href={asset.fileUrl} download={asset.originalName}><Download size={14}/> Download document</a></div>;
   return <div className="unsupportedStage"><FileText size={40}/><h3>File stored for review</h3><p>No inline preview is available for this format. The file can still have notes, QA status and a unique review link.</p><a className="button secondary smallButton" href={asset.fileUrl} download={asset.originalName}><Download size={14}/> Download original</a></div>;
+}
+
+
+type GifSnapshot = { imageData: ImageData; delayMs: number; startSec: number };
+
+function GifViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTimeChange, seekRequest, onMetadata, onError }: {
+  asset: Asset;
+  annotating: boolean;
+  brushColor: string;
+  brushWidth: number;
+  onStroke: (stroke: Stroke) => void;
+  onTimeChange: (seconds: number) => void;
+  seekRequest: { time: number; nonce: string } | null;
+  onMetadata: (meta: MediaMeta) => void;
+  onError: (message: string) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const lastSeekNonce = useRef("");
+  const [frames, setFrames] = useState<GifSnapshot[]>([]);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const duration = frames.length ? frames[frames.length - 1].startSec + frames[frames.length - 1].delayMs / 1000 : 0;
+  const ratio = dimensions.width > 0 && dimensions.height > 0 ? dimensions.width / dimensions.height : 16 / 9;
+  const frame = frames[frameIndex];
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    setFrames([]);
+    setDimensions({ width: 0, height: 0 });
+    setFrameIndex(0);
+    setCurrentTime(0);
+    setPlaying(false);
+    lastSeekNonce.current = "";
+
+    (async () => {
+      const response = await fetch(asset.fileUrl, { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not read this GIF file.");
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength > 40 * 1024 * 1024) throw new Error("GIF timeline preview is limited to 40 MB. Download the original file to inspect it.");
+      const parsed = parseGIF(buffer);
+      const width = parsed.lsd.width;
+      const height = parsed.lsd.height;
+      const frameCount = parsed.frames.filter(item => "image" in item).length;
+      if (!width || !height || !frameCount) throw new Error("No readable frames were found in this GIF.");
+      if (frameCount > 500) throw new Error("This GIF contains more than 500 frames. Download the original file for a frame-by-frame review.");
+      if (width * height * frameCount > 20000000) throw new Error("This GIF is too large to decode safely for frame-by-frame review in the browser.");
+
+      const decoded = decompressFrames(parsed, true);
+      const workCanvas = document.createElement("canvas");
+      workCanvas.width = width;
+      workCanvas.height = height;
+      const ctx = workCanvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) throw new Error("Could not initialize the GIF frame decoder.");
+      ctx.clearRect(0, 0, width, height);
+
+      const snapshots: GifSnapshot[] = [];
+      let previous: ParsedFrame | null = null;
+      let restoreBeforePrevious: ImageData | null = null;
+      let cursor = 0;
+
+      for (const decodedFrame of decoded) {
+        if (previous?.disposalType === 2) {
+          ctx.clearRect(previous.dims.left, previous.dims.top, previous.dims.width, previous.dims.height);
+        } else if (previous?.disposalType === 3 && restoreBeforePrevious) {
+          ctx.putImageData(restoreBeforePrevious, 0, 0);
+        }
+
+        const restoreBeforeCurrent = decodedFrame.disposalType === 3 ? ctx.getImageData(0, 0, width, height) : null;
+        const patch = new ImageData(decodedFrame.patch, decodedFrame.dims.width, decodedFrame.dims.height);
+        ctx.putImageData(patch, decodedFrame.dims.left, decodedFrame.dims.top);
+
+        const delayMs = Math.max(20, Number(decodedFrame.delay) || 100);
+        snapshots.push({ imageData: ctx.getImageData(0, 0, width, height), delayMs, startSec: cursor / 1000 });
+        cursor += delayMs;
+        previous = decodedFrame;
+        restoreBeforePrevious = restoreBeforeCurrent;
+      }
+
+      if (cancelled) return;
+      setFrames(snapshots);
+      setDimensions({ width, height });
+      setFrameIndex(0);
+      setCurrentTime(0);
+      setPlaying(false);
+      onTimeChange(0);
+      onMetadata({ width, height, duration: cursor / 1000, loaded: true });
+    })().catch(e => {
+      if (!cancelled) {
+        const message = e instanceof Error ? e.message : "Could not decode the GIF timeline.";
+        setError(message);
+        onError(message);
+      }
+    }).finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [asset.id, asset.fileUrl]);
+
+  useEffect(() => {
+    if (!frame || !canvasRef.current || !dimensions.width || !dimensions.height) return;
+    const canvas = canvasRef.current;
+    canvas.width = dimensions.width;
+    canvas.height = dimensions.height;
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.putImageData(frame.imageData, 0, 0);
+  }, [frame, dimensions]);
+
+  const findFrameAt = (seconds: number) => {
+    if (!frames.length) return 0;
+    const target = Math.max(0, Math.min(seconds, Math.max(0, duration - 0.001)));
+    let result = 0;
+    for (let i = 0; i < frames.length; i++) {
+      if (frames[i].startSec <= target) result = i;
+      else break;
+    }
+    return result;
+  };
+
+  const selectTime = (seconds: number) => {
+    if (!frames.length) return;
+    const index = findFrameAt(seconds);
+    const selected = frames[index];
+    setPlaying(false);
+    setFrameIndex(index);
+    setCurrentTime(selected.startSec);
+    onTimeChange(selected.startSec);
+  };
+
+  useEffect(() => {
+    if (!seekRequest || !frames.length || seekRequest.nonce === lastSeekNonce.current) return;
+    lastSeekNonce.current = seekRequest.nonce;
+    selectTime(seekRequest.time);
+  }, [seekRequest, frames]);
+
+  useEffect(() => {
+    if (!playing || !frames.length || !frame) return;
+    const timer = window.setTimeout(() => {
+      const nextIndex = (frameIndex + 1) % frames.length;
+      const next = frames[nextIndex];
+      setFrameIndex(nextIndex);
+      setCurrentTime(next.startSec);
+      onTimeChange(next.startSec);
+    }, frame.delayMs);
+    return () => window.clearTimeout(timer);
+  }, [playing, frames, frameIndex, onTimeChange]);
+
+  return <div className="assetStageOuter gifReview">
+    <div className="assetStage imageStage gifStage" style={{ aspectRatio: ratio, maxWidth: "min(100%, calc(62vh * " + ratio + "))" }}>
+      {loading
+        ? <div className="viewerMessage"><LoaderCircle size={23} className="spinning"/>Decoding GIF frames…</div>
+        : error
+          ? <div className="viewerMessage"><CircleAlert size={23}/><b>Frame review unavailable</b><p>{error}</p><a href={asset.fileUrl} download={asset.originalName}>Download original GIF</a></div>
+          : <>
+              <canvas ref={canvasRef} className="assetMedia gifCanvas" aria-label={"GIF frame " + (frameIndex + 1)}/>
+              <AnnotationLayer key={asset.id} strokes={asset.strokes} annotate={annotating} color={brushColor} width={brushWidth} timestamp={currentTime} activeTime={currentTime} timeTolerance={Math.max(0.02, (frame?.delayMs || 100) / 2000)} onStroke={onStroke}/>
+            </>
+      }
+    </div>
+    {!loading && !error && frames.length > 0 && <div className="gifTimeline">
+      <div className="gifTimelineInfo">
+        <button type="button" className="button secondary smallButton" onClick={() => setPlaying(value => !value)} aria-label={playing ? "Pause GIF timeline" : "Play GIF timeline"}>
+          {playing ? <Pause size={14}/> : <Play size={14}/>} {playing ? "Pause" : "Play"}
+        </button>
+        <strong>{fmtTime(currentTime)} <span>/ {fmtTime(duration)}</span></strong>
+        <span className="gifFrameCount">Frame {frameIndex + 1} of {frames.length}</span>
+      </div>
+      <input className="gifSeek" type="range" aria-label="Choose GIF frame time" min="0" max={Math.max(duration, 0.01)} step="0.01" value={Math.min(currentTime, duration)} onChange={e => selectTime(Number(e.target.value))}/>
+      <div className="gifTimelineHelp">Drag the timeline to choose a frame. Pause playback before drawing or adding a note.</div>
+    </div>}
+  </div>;
 }
 
 function metadataDurationText(value: number | undefined) { return value && Number.isFinite(value) ? fmtTime(value) : "Duration pending"; }
