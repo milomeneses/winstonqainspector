@@ -300,7 +300,7 @@ export default function ReviewWorkspace({ reviewId }: { reviewId: string }) {
           <div className="assetList">
             {visibleAssets.map(asset => {
               const Icon = KIND_ICON[asset.kind];
-              return <button type="button" key={asset.id} className={"assetListItem " + (activeId === asset.id ? "active" : "")} onClick={()=>{setActiveId(asset.id);setCurrentTime(0);setAnnotating(false);setConfirmRemoveId("");window.history.replaceState(null,"","/review/"+reviewId+"?asset="+encodeURIComponent(asset.id));}}>
+              return <button type="button" key={asset.id} className={"assetListItem " + (activeId === asset.id ? "active" : "")} onClick={()=>{setActiveId(asset.id);setCurrentTime(0);setSeekRequest(null);setTimeNoteText("");setAnnotating(false);setConfirmRemoveId("");window.history.replaceState(null,"","/review/"+reviewId+"?asset="+encodeURIComponent(asset.id));}}>
                 <span className={"assetThumb " + asset.kind}><Icon size={18}/></span><span className="assetListCopy"><b title={asset.originalName}>{asset.originalName}</b><small>{KIND_LABEL[asset.kind]} · {niceSize(asset.size)}</small><span className={"tinyStatus " + STATUS_CLASS[asset.status]}>{STATUS_LABEL[asset.status]}</span></span>
               </button>;
             })}
@@ -527,6 +527,8 @@ function GifViewer({ asset, annotating, brushColor, brushWidth, onStroke, onTime
 
     return () => { cancelled = true; };
   }, [asset.id, asset.fileUrl]);
+
+  useEffect(() => { if (annotating) setPlaying(false); }, [annotating]);
 
   useEffect(() => {
     if (!frame || !canvasRef.current || !dimensions.width || !dimensions.height) return;
