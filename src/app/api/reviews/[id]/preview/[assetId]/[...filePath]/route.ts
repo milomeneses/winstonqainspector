@@ -65,17 +65,20 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return new Response("Preview is limited to ZIP files of 25 MB or less. Download the ZIP to inspect it locally.", { status: 413 });
     }
     const archive = await JSZip.loadAsync(bytes, { checkCRC32: false });
-    const entry = archive.file(requestPath);
+    const entry = requestPath === "__entry__"
+      ? Object.values(archive.files).filter(item => !item.dir && /\\.html?$/i.test(item.name) && !item.name.startsWith("__MACOSX/")).sort((a, b) => (a.name.includes("/") ? 1 : 0) - (b.name.includes("/") ? 1 : 0))[0]
+      : archive.file(requestPath);
     if (!entry || entry.dir) return new Response("Preview asset not found: " + requestPath, { status: 404 });
+    const actualPath = entry.name;
 
-    const extension = requestPath.split(".").pop()?.toLowerCase() || "bin";
+    const extension = actualPath.split(".").pop()?.toLowerCase() || "bin";
     const type = MIME[extension] || "application/octet-stream";
     let output: Buffer;
 
     if (extension === "html" || extension === "htm") {
       let html = await entry.async("string");
       const previewRoot = "/api/reviews/" + id + "/preview/" + assetId + "/";
-      const directory = requestPath.includes("/") ? requestPath.slice(0, requestPath.lastIndexOf("/") + 1) : "";
+      const directory = actualPath.includes("/") ? actualPath.slice(0, actualPath.lastIndexOf("/") + 1) : "";
       const base = previewRoot + encodePath(directory);
       html = html.replace(/<base\\b[^>]*>/gi, "");
       html = rootRelativeToPreview(html, previewRoot);
